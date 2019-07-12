@@ -12,13 +12,13 @@ Although RWG would probably have trouble with very complex tasks, the fact that 
 Here, we're just testing it for the `CartPole-v0` environment. It's incredibly simple, and thus, it solves it very quickly:
 
 <p align="center">
-  <img width="600" height="600" src="misc/NE_cartpole_FF.png">
+  <img width="640" height="480" src="misc/NE_cartpole_FF.png">
 </p>
 
 You can see that because it's doing RWG, the results of runs are independent of the previous ones, i.e., nothing "builds off" of previous runs.
 
 <p align="center">
-  <img width="600" height="600" src="misc/cartpole-v0_ep.gif">
+  <img width="600" height="400" src="misc/cartpole-v0_ep.gif">
 </p>
 
 Being random, it has a lot of variance in how many generations it takes to find a solution. A more rigorous experiment would run this many times to get a distribution of the solve times.
