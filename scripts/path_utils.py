@@ -6,18 +6,25 @@ For adding the dirs to the system path, so we can reference
 classes from wherever we run a script. Import this first for any
 file you want to use it for.
 
+src/ classes will only be called from scripts, so assume that this has
+already been called and dirs added to the system path.
 '''
 
 
 ROOT_DIR = os.path.join(os.path.dirname(__file__), '../')
+SRC_DIR = os.path.join(ROOT_DIR, 'src')
 NN_DIR = os.path.join(ROOT_DIR, 'NN')
 OUTPUT_DIR = os.path.join(ROOT_DIR, 'output')
 
 sys.path.append(ROOT_DIR)
+sys.path.append(SRC_DIR)
 sys.path.append(NN_DIR)
 
 def get_output_dir():
     return OUTPUT_DIR
+
+def get_src_dir():
+    return SRC_DIR
 
 def timer(func):
     # Print the runtime of the decorated function
