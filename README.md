@@ -43,6 +43,63 @@ This will run it for a maximum of 1000 generations. Each generation, it will res
 If it's solved, it breaks. When it's done, it plots the best FF at each generation, as well as the FF from each generation. Then, it runs an episode with the best weights set found, and saves the video.
 
 
+## Higher order benchmarking
+
+The above solves the `CartPole-v0` env. However, we want to benchmark more envs. In addition, a single solve isn't representative, especially given the randomness inherent in many of these environments. What would give more specific info is to do the above benchmarking, but run it a number of times to create a distribution.
+
+This is easily doable with the `Evolve` class and the `Benchmark.py` functions. Briefly, an `Evolve` object creates an `Agent` class object for a given env, and then `Evolve.evolve()` does RWG to try and solve that env. It returns the solve time (in number of generations).
+
+`Benchmark.benchmark_envs()` takes a list of envs. For each, it creates a dist of the solve times, by (some specified number of times) creating a new `Evolve` object and solving the env.
+
+Here's a simple usage, from `scripts/benchmark_example.py`:
+
+```
+import path_utils
+import Benchmark
+
+Benchmark.benchmark_envs(['CartPole-v0'], N_dist=100, N_gen=1000)
+```
+
+This will only benchmark `CartPole-v0`. It will create a distribution of solve times from `N_dist` instances of that env. Each one will have a max number of generations `N_gen` (if it doesn't solve in that time, it gets marked as the maximum time; this might be suboptimal because it's underestimating these outliers).
+
+This produces:
+
+<p align="center">
+  <img width="600" height="400" src="misc/cartpole-v0_ep.gif">
+</p>
+
+In addition, it creates a timestamped directory in the `outputs` directory for the benchmarking run. Within that, it creates:
+
+* For each env benchmarked, a directory with the FF plot for each run
+* A distribution plot for each env
+* A .json file with the solve times for each env, `solve_time_dists.json`
+
+Example structure:
+
+```
+├── output
+│   ├── Benchmark_17-07-2019_10-52-41
+│   │   ├── CartPole-v0
+│   │   ├── CartPole-v0_solve_gen_dist.png
+│   │   ├── LunarLander-v2
+│   │   ├── LunarLander-v2_solve_gen_dist.png
+│   │   └── solve_time_dists.json
+│   └── Benchmark_17-07-2019_10-57-01
+│       ├── CartPole-v0
+│       ├── CartPole-v0_solve_gen_dist.png
+│       └── solve_time_dists.json
+```
+
+Similarly, `Benchmark.benchmark_classic_control_envs()` will call `Benchmark.benchmark_envs()` with only the "classic control" envs.
+
+Other simple variations have been added, to be tested:
+
+* Softmax vs argmax outputs for discrete action spaces
+* Different activation functions (even linear can solve many of these environments! See CartPole and LunarLander solves here: https://www.declanoller.com/2019/01/25/beating-openai-games-with-neuroevolution-agents-pretty-neat/ )
+* Feedforward vs RNN networks (currently using FF as default, because it seems to solve much quicker)
+
+
+
 ## Relevant links
 
 * https://github.com/giuse/tinynet

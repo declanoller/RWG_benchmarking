@@ -186,7 +186,7 @@ class Evolve:
         plt.legend()
         plt.title(f'{self.env_name} environment')
         plt.tight_layout()
-        plt.savefig(os.path.join(self.output_dir, '{}_{}'.format(self.env_name, path_utils.get_date_str())))
+        plt.savefig(os.path.join(self.output_dir, '{}_FF_{}.png'.format(self.env_name, path_utils.get_date_str())))
         if kwargs.get('show_plot', False):
             plt.show()
 
