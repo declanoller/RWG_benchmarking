@@ -71,8 +71,13 @@ def benchmark_envs(env_list, **kwargs):
 
 
 
-
 def benchmark_classic_control_envs(**kwargs):
+
+    '''
+    Loads gym_envs_info.json. This contains info about the envs we want to benchmark.
+
+    It then calls benchmark_envs() for the classic control envs.
+    '''
 
     with open(os.path.join(path_utils.get_src_dir(), 'gym_envs_info.json'), 'r') as f:
         envs_dict = json.load(f)
@@ -86,6 +91,11 @@ def benchmark_classic_control_envs(**kwargs):
 
 
 def plot_solve_gen_dist(dist, env, fname, **kwargs):
+
+    '''
+    For plotting the distribution of solve times for the env.
+    Plots a vertical dashed line at the mean.
+    '''
 
     plt.close('all')
     mu = np.mean(dist)
