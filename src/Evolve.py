@@ -86,19 +86,20 @@ class Evolve:
                 print(f'New best score {best_score:.3f} in generation {gen}')
                 best_weights = self.agent.get_weight_matrix()
 
-                # If it achieved a new best score, test for self.N_eval_trials episode average score.
-                # If self.N_eval_trials ep mean score is >= self.solved_avg_reward, it's considered solved.
-                eval_trials = []
-                for _ in range(self.N_eval_trials):
-                    eval_trials.append(self.run_episode())
+                if mean_score > 0.8*self.solved_avg_reward:
+                    # If it achieved a new best score, test for self.N_eval_trials episode average score.
+                    # If self.N_eval_trials ep mean score is >= self.solved_avg_reward, it's considered solved.
+                    eval_trials = []
+                    for _ in range(self.N_eval_trials):
+                        eval_trials.append(self.run_episode())
 
-                eval_mean = np.mean(eval_trials)
-                if eval_mean >= self.solved_avg_reward:
-                    print(f'\t==> Solved! {self.N_eval_trials} ep mean score = {eval_mean:.2f} in gen {gen}')
-                    solved = True
-                    solve_gen = gen
-                else:
-                    print(f'\t==> Unsolved. {self.N_eval_trials} ep mean score = {eval_mean:.2f} in gen {gen}')
+                    eval_mean = np.mean(eval_trials)
+                    if eval_mean >= self.solved_avg_reward:
+                        print(f'\t==> Solved! {self.N_eval_trials} ep mean score = {eval_mean:.2f} in gen {gen}')
+                        solved = True
+                        solve_gen = gen
+                    else:
+                        print(f'\t==> Unsolved. {self.N_eval_trials} ep mean score = {eval_mean:.2f} in gen {gen}')
 
             all_scores.append(mean_score)
             best_scores.append(best_score)
@@ -190,7 +191,6 @@ class Evolve:
             plt.show()
 
 
-
     def show_best_episode(self, weights):
 
         '''
@@ -201,7 +201,6 @@ class Evolve:
 
         self.agent.set_weight_matrix(weights)
         ep_score = self.run_episode(show_ep=True, record_ep=False)
-
 
 
     def record_best_episode(self, weights):
