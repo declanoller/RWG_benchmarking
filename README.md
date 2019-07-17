@@ -102,6 +102,9 @@ Other simple variations have been added, to be tested:
 * Different activation functions (even linear can solve many of these environments! See CartPole and LunarLander solves here: https://www.declanoller.com/2019/01/25/beating-openai-games-with-neuroevolution-agents-pretty-neat/ )
 * Feedforward vs RNN networks (currently using FF as default, because it seems to solve much quicker)
 
+## Issues, upgrades, expansions
+
+See Issues tab, which will be a general To-do list.
 
 
 ## Relevant links
