@@ -65,7 +65,7 @@ This will only benchmark `CartPole-v0`. It will create a distribution of solve t
 This produces:
 
 <p align="center">
-  <img width="600" height="400" src="misc/CartPole-v0_solve_gen_dist.png">
+  <img width="640" height="480" src="misc/CartPole-v0_solve_gen_dist.png">
 </p>
 
 In addition, it creates a timestamped directory in the `outputs` directory for the benchmarking run. Within that, it creates:
@@ -89,6 +89,8 @@ Example structure:
 │       ├── CartPole-v0_solve_gen_dist.png
 │       └── solve_time_dists.json
 ```
+
+(the FF plots for each env have been omitted, as there are `N_dist` many of them.)
 
 Similarly, `Benchmark.benchmark_classic_control_envs()` will call `Benchmark.benchmark_envs()` with only the "classic control" envs.
 
