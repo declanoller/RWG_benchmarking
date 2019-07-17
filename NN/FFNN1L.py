@@ -39,7 +39,7 @@ class FFNN1L:
 
     def softmax_choice(self, x):
         x_softmax = np.exp(x)/sum(np.exp(x))
-        return np.choice(len(x), p=x_softmax)
+        return np.random.choice(len(x), p=x_softmax)
 
     def init_weights(self):
         return np.random.randn(self.nneurs, self.state_size)

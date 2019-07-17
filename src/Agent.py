@@ -33,13 +33,16 @@ class Agent:
             # should be implemented.
             self.action_scale = env.action_space.high.max()
 
+        # Lets the user override it if they supplied one; otherwise uses default value.
+        output_fn = kwargs.get('output_fn', output_fn)
+
         # Select the NN class to use.
         NN_types_dict = {
             'RNN' : RNN1L,
             'FFNN' : FFNN1L
         }
 
-        NN_type = kwargs.get('NN', 'RNN')
+        NN_type = kwargs.get('NN', 'FFNN')
         assert NN_type in NN_types_dict.keys(), 'Must supply a valid NN type!'
         self.NN = NN_types_dict[NN_type](self.ninputs, self.nactions, output_fn=output_fn)
 

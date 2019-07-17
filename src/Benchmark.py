@@ -11,7 +11,7 @@ Will eventually be made into a class that will handle all the benchmarking
 details. For now, just holds benchmark_envs.
 '''
 
-
+@path_utils.timer
 def benchmark_envs(env_list, **kwargs):
 
     '''
