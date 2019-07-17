@@ -65,7 +65,7 @@ This will only benchmark `CartPole-v0`. It will create a distribution of solve t
 This produces:
 
 <p align="center">
-  <img width="600" height="400" src="misc/cartpole-v0_ep.gif">
+  <img width="600" height="400" src="misc/CartPole-v0_solve_gen_dist.png">
 </p>
 
 In addition, it creates a timestamped directory in the `outputs` directory for the benchmarking run. Within that, it creates:
