@@ -9,10 +9,9 @@ class RNN1L:
     - cols in the weight matrix correspond to connections from the same input
     """
 
-    def __init__(self, ninputs, nneurs, act_fn=np.tanh, init_weights=None, output_fn='argmax'):
+    def __init__(self, ninputs, nneurs, act_fn='tanh', init_weights=None, output_fn='argmax'):
         self.ninputs = ninputs
         self.nneurs = nneurs
-        self.act_fn = act_fn # make sure it applies element-wise to a np array
         self.state_size = self.ninputs + 1 + self.nneurs
         self.reset_state()
         self.weights_matrix = self.init_weights()
@@ -22,12 +21,26 @@ class RNN1L:
         self.bias_idxs = range(ninputs + 1, ninputs + 1)
         self.act_idxs = range(ninputs + 1, ninputs + 1 + nneurs)
 
+        activation_fn_d = {
+                    'tanh' : np.tanh,
+                    'linear' : lambda x: x,
+                    'relu' : lambda x: np.maximum(0, x)
+        }
+        assert act_fn in activation_fn_d.keys(), 'Must supply valid activation function name!'
+        self.act_fn = activation_fn_d[act_fn] # make sure it applies element-wise to a np array
+
         output_fn_d = {
                     'argmax' : np.argmax,
-                    'continuous' : lambda x: x
+                    'continuous' : lambda x: x,
+                    'softmax' : self.softmax_choice
                     }
-        assert output_fn in output_fn_d, 'Must supply valid output function name'
+        assert output_fn in output_fn_d.keys(), 'Must supply valid output function name'
         self.output_fn = output_fn_d[output_fn]
+
+
+    def softmax_choice(self, x):
+        x_softmax = np.exp(x)/sum(np.exp(x))
+        return np.choice(len(x), p=x_softmax)
 
 
     def init_weights(self):
