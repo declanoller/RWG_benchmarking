@@ -68,6 +68,8 @@ This produces:
   <img width="640" height="480" src="misc/CartPole-v0_solve_gen_dist.png">
 </p>
 
+Something curious: even though it seems to have a well-defined Gamma-like (?) distribution shape, there are always some at the maximum `N_gen` (meaning they didn't solve). This is curious, since every iteration of `evolve()` is independent. However, since we're just testing for `mean_score` > `best_score`, it's possible that it gets a "lucky" set of weights that got a high score for its 3 episode trials, but couldn't solve it. Then, later sets that might not get as high a 3-episode score, but *would* solve it, don't get tested. This has to be looked at more.
+
 In addition, it creates a timestamped directory in the `outputs` directory for the benchmarking run. Within that, it creates:
 
 * For each env benchmarked, a directory with the FF plot for each run
