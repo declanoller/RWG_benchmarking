@@ -1,5 +1,6 @@
 import os, sys, functools, time
 from datetime import datetime
+from copy import deepcopy
 
 '''
 For adding the dirs to the system path, so we can reference
@@ -39,9 +40,61 @@ def timer(func):
     return wrapper_timer
 
 
+
+################### Useful formatting functions
+
 def get_date_str():
     # Returns the date and time for labeling output.
-	return datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
+    # -4 to only take two second decimal places.
+	return datetime.now().strftime('%d-%m-%Y_%H-%M-%S.%f')[:-4]
 
+
+def dict_to_str_list(dict):
+	pd_copy = deepcopy(dict)
+	for k,v in pd_copy.items():
+		if isinstance(v, float):
+			if abs(v) > 10**-4:
+				pd_copy[k] = '{:.3f}'.format(v)
+			else:
+				pd_copy[k] = '{:.2E}'.format(v)
+
+	params = [f'{k}={v}' for k,v in pd_copy.items() if v is not None]
+	return params
+
+
+def param_dict_to_fname_str(param_dict):
+	# Creates a string that can be used as an fname, separated by
+	# underscores. If a param has the value None, it isn't included.
+	params = dict_to_str_list(param_dict)
+	return '_'.join(params)
+
+
+def param_dict_to_label_str(param_dict):
+	# Creates a string that can be used as an fname, separated by
+	# commas. If a param has the value None, it isn't included.
+	params = dict_to_str_list(param_dict)
+	return ', '.join(params)
+
+
+def linebreak_every_n_spaces(s, n=3):
+
+	# This is to turn every nth space into a newline,
+	# for stuff like plotting.
+	counter = 0
+	while True:
+		if counter > 1:
+			t = s.replace(' ', '\n', 1)
+			counter = 0
+		else:
+			t = s.replace(' ', 'PLACEHOLDERXYZ', 1)
+			counter += 1
+
+		if t == s:
+			break
+		else:
+			s = t
+
+	s = s.replace('PLACEHOLDERXYZ', ' ')
+	return(s)
 
 #

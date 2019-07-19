@@ -1,5 +1,6 @@
 from FFNN1L import FFNN1L
 from RNN1L import RNN1L
+from FFNN_multilayer import FFNN_multilayer
 import numpy as np
 
 '''
@@ -39,12 +40,13 @@ class Agent:
         # Select the NN class to use.
         NN_types_dict = {
             'RNN' : RNN1L,
-            'FFNN' : FFNN1L
+            'FFNN' : FFNN1L,
+            'FFNN_multilayer' : FFNN_multilayer
         }
 
         NN_type = kwargs.get('NN', 'FFNN')
         assert NN_type in NN_types_dict.keys(), 'Must supply a valid NN type!'
-        self.NN = NN_types_dict[NN_type](self.ninputs, self.nactions, output_fn=output_fn)
+        self.NN = NN_types_dict[NN_type](self.ninputs, self.nactions, output_fn=output_fn, **kwargs)
 
         self.reset()
 

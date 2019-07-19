@@ -43,10 +43,6 @@ class Evolve:
         # Two details for being considered "solved"
         self.solved_avg_reward = envs_dict[env_name]['solved_avg_reward']
         self.N_eval_trials = envs_dict[env_name]['N_eval_trials']
-        if 'eps_before_solve' in envs_dict[env_name].keys():
-            self.leaderboard_record = envs_dict[env_name]['eps_before_solve']
-        else:
-            self.leaderboard_record = '-'
 
 
     def evolve(self, N_gen, **kwargs):
@@ -117,8 +113,7 @@ class Evolve:
             'all_scores' : all_scores,
             'best_weights' : best_weights,
             'solved' : solved,
-            'solve_gen' : solve_gen,
-            'leaderboard_record' : self.leaderboard_record
+            'solve_gen' : solve_gen
         }
 
 

@@ -9,7 +9,12 @@ class RNN1L:
     - cols in the weight matrix correspond to connections from the same input
     """
 
-    def __init__(self, ninputs, nneurs, act_fn='tanh', init_weights=None, output_fn='argmax'):
+    def __init__(self, ninputs, nneurs, init_weights=None, **kwargs):
+
+        act_fn = kwargs.get('act_fn', 'tanh')
+        output_fn = kwargs.get('output_fn', 'argmax')
+
+        
         self.ninputs = ninputs
         self.nneurs = nneurs
         self.state_size = self.ninputs + 1 + self.nneurs
