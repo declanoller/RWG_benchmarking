@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import os
 
 # Environment setup
-env_name = "CartPole-v0"
+#env_name = "CartPole-v0"
+env_name = 'Acrobot-v1'
 env = gym.make(env_name)
 nactions = env.action_space.n
 ninputs = env.reset().size
@@ -23,10 +24,13 @@ def run_episode(ep_net):
     obs = env.reset()
     score = 0
     done = False
+    step = 0
     while not done:
+        #print(f'step {step}')
         action = ep_net.get_action(obs)
         obs, rew, done, info = env.step(action)
         score += rew
+        step += 1
     return score
 
 
@@ -39,6 +43,12 @@ N_trials = 3
 
 # Gameplay loop
 for gen in range(max_gen):
+
+    if gen % max(1, max_gen//100) == 0:
+        print(f'generation {gen}')
+
+
+
     # Get new NN
     net.set_random_weights()
 

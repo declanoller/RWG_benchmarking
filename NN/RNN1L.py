@@ -1,30 +1,25 @@
 import numpy as np
 
+'''
+Implementation of a no-hidden-layer RNN. It takes N_inputs and gives N_outputs.
+However, we always save the output of a forward pass as self.last_output, and
+the input is always concatenated with a bias term (1.0) and self.last_output,
+which makes it recurrent.
+
+The initial self.last_output value is all zeros.
+'''
+
+
 class RNN1L:
-    """Recurrent neural network, single layer
 
-    - `self.state` represents: last inputs + fixed 1 (bias) + last activation
-    - weights are thus order the same way in each row of the weights matrix
-    - rows in the weight matrix correspond to weights of connections entering a same neuron
-    - cols in the weight matrix correspond to connections from the same input
-    """
-
-    def __init__(self, ninputs, nneurs, init_weights=None, **kwargs):
+    def __init__(self, N_inputs, N_outputs, **kwargs):
 
         act_fn = kwargs.get('act_fn', 'tanh')
-        output_fn = kwargs.get('output_fn', 'argmax')
 
-        
-        self.ninputs = ninputs
-        self.nneurs = nneurs
-        self.state_size = self.ninputs + 1 + self.nneurs
-        self.reset_state()
-        self.weights_matrix = self.init_weights()
-        if init_weights: self.set_weights(init_weights)
-        # state index accessors
-        self.input_idxs = range(0, ninputs)
-        self.bias_idxs = range(ninputs + 1, ninputs + 1)
-        self.act_idxs = range(ninputs + 1, ninputs + 1 + nneurs)
+        self.N_inputs = N_inputs
+        self.N_outputs = N_outputs
+
+        self.init_weights()
 
         activation_fn_d = {
                     'tanh' : np.tanh,
@@ -32,61 +27,100 @@ class RNN1L:
                     'relu' : lambda x: np.maximum(0, x)
         }
         assert act_fn in activation_fn_d.keys(), 'Must supply valid activation function name!'
-        self.act_fn = activation_fn_d[act_fn] # make sure it applies element-wise to a np array
-
-        output_fn_d = {
-                    'argmax' : np.argmax,
-                    'continuous' : lambda x: x,
-                    'softmax' : self.softmax_choice
-                    }
-        assert output_fn in output_fn_d.keys(), 'Must supply valid output function name'
-        self.output_fn = output_fn_d[output_fn]
+        self.act_fn = activation_fn_d[act_fn]
 
 
-    def softmax_choice(self, x):
-        x_softmax = np.exp(x)/sum(np.exp(x))
-        return np.random.choice(len(x), p=x_softmax)
+    def reset_state(self):
+        # For RNN, set to 0s.
+        self.last_output = np.zeros(self.N_outputs)
+
+
+    def print_NN_matrices(self):
+
+        '''
+        For debugging. Print NN weights/shapes.
+        '''
+
+        print('N_inputs: ', self.N_inputs)
+
+        for i,w in enumerate(self.weights_matrix):
+            print(f'W_{i} shape: {w.shape}')
+
+        print('N_outputs: ', self.N_outputs)
+
+        print('\nWeight matrices:')
+        for i,w in enumerate(self.weights_matrix):
+            print(f'\nW_{i}:')
+            print(w)
 
 
     def init_weights(self):
-        return np.random.randn(self.nneurs, self.state_size)
+        # Randomly set the weight matrix, which has to be the right size
+        # to include a bias and self.last_output term.
 
-    def set_weights(self, weights):
-        assert weights.size == self.weights_matrix.size, "Wrong number of weights"
-        self.weights_matrix = weights.reshape(self.weights_matrix.shape)
+        self.last_output = np.zeros(self.N_outputs)
+
+        mat_input_size = self.N_inputs + 1 + self.N_outputs
+        self.weights_matrix = np.random.randn(self.N_outputs, mat_input_size)
+        self.N_weights = len(self.weights_matrix.flatten())
         self.reset_state()
 
+
+
+    def set_weights(self, weights):
+        # Directly set the weights matrix.
+        self.weights_matrix = weights
+        self.reset_state()
+
+
+    def set_weights_by_list(self, w_list):
+        # Handy for setting externally.
+        self.weights_matrix = np.array(w_list).reshape(self.weights_matrix.shape)
+        self.reset_state()
+
+
+
     def set_random_weights(self):
-        self.set_weights(np.random.randn(self.nweights()))
+        # Just calls init_weights, which will randomize them.
+        self.init_weights()
+        self.reset_state()
 
-    def reset_state(self):
-        self.state = np.zeros(self.state_size)
-        self.state[self.ninputs] = 1 # bias -- should never be changed!
 
-    def activate(self, inputs):
-        """Activate the neural network
+    def forward(self, input_vec):
 
-        - Overwrite the new inputs in the initial part of the state
-        - Execute dot product with weight matrix
-        - Pass result to activation function
-        """
-        self.state[self.input_idxs] = inputs
-        net = np.dot(self.weights_matrix, self.state)
-        self.state[self.act_idxs] = self.act_fn(net)
-        return self.get_act()
+        '''
+        Function for giving input to NN, getting output.
+        Matrix multiplies the weight matrix at by a concatenated: (the input,
+        a bias term of 1.0, self.last_output), then applies the nonlinear
+        activation function and sets self.last_output to this.
 
-    def last_input(self):
-        return self.state[self.input_idxs]
+        What is done with the output (argmax, etc) is up to the Agent class
+        to do.
+        '''
 
-    def get_act(self):
-        return self.state[self.act_idxs]
+        x = input_vec
+        x = np.concatenate((x, [1.0], self.last_output))
+        x = np.dot(self.weights_matrix, x)
+        x = self.act_fn(x)
+        self.last_output = x
+        return x
 
-    def get_action(self, inputs):
-        action_vec = self.activate(inputs)
-        return self.output_fn(action_vec)
 
-    def nweights(self):
-        return self.weights_matrix.size
+    def get_weight_sums(self):
 
-    def nweights_per_neur(self):
-        return self.weights_matrix.shape[1]
+        L0 = np.sum(self.weights_matrix])/self.N_weights
+        L1 = np.abs(self.weights_matrix).sum()/self.N_weights
+        L2 = (self.weights_matrix**2).sum()/self.N_weights
+
+        return {
+            'L0' : L0,
+            'L1' : L1,
+            'L2' : L2
+        }
+
+
+
+
+
+
+#

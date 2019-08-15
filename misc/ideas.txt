@@ -1,0 +1,4 @@
+-doing grid search
+-make it so it calculates average behavior across all random/grid search
+-try a grid search where it searches starting with "sparser" weight sets and increases from there (i.e., most weights 0)
+-calculate what percent of random weights/grid search provide solutions
