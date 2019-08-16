@@ -1,7 +1,7 @@
 import path_utils
 import numpy as np
 from RNN1L import RNN1L
-from FFNN1L import FFNN1L
+from FFNN_multilayer import FFNN_multilayer
 import gym
 import matplotlib.pyplot as plt
 import os
@@ -15,7 +15,7 @@ ninputs = env.reset().size
 
 # Network setup
 #net = RNN1L(ninputs, nactions)
-net = FFNN1L(ninputs, nactions) # Simple feedforward NN
+net = FFNN_multilayer(ninputs, nactions) # Simple feedforward NN
 net.set_random_weights()
 
 def run_episode(ep_net):

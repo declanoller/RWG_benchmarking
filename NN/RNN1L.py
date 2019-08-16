@@ -108,7 +108,7 @@ class RNN1L:
 
     def get_weight_sums(self):
 
-        L0 = np.sum(self.weights_matrix])/self.N_weights
+        L0 = np.sum(self.weights_matrix)/self.N_weights
         L1 = np.abs(self.weights_matrix).sum()/self.N_weights
         L2 = (self.weights_matrix**2).sum()/self.N_weights
 

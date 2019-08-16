@@ -1,4 +1,3 @@
-from FFNN1L import FFNN1L
 from RNN1L import RNN1L
 from FFNN_multilayer import FFNN_multilayer
 import numpy as np
@@ -58,7 +57,7 @@ class Agent:
         self.search_method = kwargs.get('search_method', 'RWG')
         self.setup_search_method()
 
-        self.reset()
+        self.init_episode()
 
 
 
