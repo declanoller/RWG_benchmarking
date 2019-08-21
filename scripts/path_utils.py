@@ -17,7 +17,7 @@ SRC_DIR = os.path.join(ROOT_DIR, 'src')
 NN_DIR = os.path.join(ROOT_DIR, 'NN')
 OUTPUT_DIR = os.path.join(ROOT_DIR, 'output')
 
-if not os.exists(OUTPUT_DIR):
+if not os.path.exists(OUTPUT_DIR):
     os.mkdir(OUTPUT_DIR)
 
 sys.path.append(ROOT_DIR)
