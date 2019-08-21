@@ -1,3 +1,4 @@
+import pandas as pd
 import path_utils
 from Evolve import Evolve, replot_evo_dict_from_dir
 import traceback as tb
@@ -7,7 +8,6 @@ import matplotlib.pyplot as plt
 import itertools
 from copy import deepcopy
 import pprint as pp
-import pandas as pd
 from tabulate import tabulate
 import seaborn as sns
 import ray, psutil, time
