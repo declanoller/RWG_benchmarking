@@ -1,8 +1,7 @@
 import numpy as np
 import gym
 import matplotlib.pyplot as plt
-import os
-import json
+import os, json
 
 import path_utils
 import Agent
@@ -25,7 +24,6 @@ However, this offers the opportunity to use other methods (CMA-ES, etc).
 Uses the Agent class, which handles the NN and related stuff.
 
 '''
-
 
 class Evolve:
 

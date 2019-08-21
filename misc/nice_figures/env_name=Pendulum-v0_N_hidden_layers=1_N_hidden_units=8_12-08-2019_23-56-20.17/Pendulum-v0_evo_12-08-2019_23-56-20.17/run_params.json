@@ -1,0 +1,13 @@
+{
+    "NN": "FFNN_multilayer",
+    "N_hidden_layers": 1,
+    "N_hidden_units": 8,
+    "run_fname_label": "env_name=Pendulum-v0_N_hidden_layers=1_N_hidden_units=8",
+    "run_plot_label": "env_name=Pendulum-v0, N_hidden_layers=1, N_hidden_units=8",
+    "base_dir": "/home/declan/Documents/code/RWG_benchmarking/scripts/../output/Stats_vary_env_name_N_hidden_layers_N_hidden_units_12-08-2019_22-35-16.79/env_name=Pendulum-v0_N_hidden_layers=1_N_hidden_units=8_12-08-2019_23-56-20.17",
+    "env_name": "Pendulum-v0",
+    "search_method": "RWG",
+    "dt_str": "12-08-2019_23-56-20.17",
+    "run_dir": "/home/declan/Documents/code/RWG_benchmarking/scripts/../output/Stats_vary_env_name_N_hidden_layers_N_hidden_units_12-08-2019_22-35-16.79/env_name=Pendulum-v0_N_hidden_layers=1_N_hidden_units=8_12-08-2019_23-56-20.17/Pendulum-v0_evo_12-08-2019_23-56-20.17",
+    "NN_type": "FFNN_multilayer"
+}
