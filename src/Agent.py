@@ -130,6 +130,10 @@ class Agent:
         # Just a wrapper to return the NN weight matrix.
         return self.NN.weights_matrix
 
+    def get_weights_as_list(self):
+        return self.NN.get_weights_as_list()
+
+
     def set_weight_matrix(self, w):
         # Used to set the weight matrix, but be careful, because it
         # has to be in the right form for that NN.
