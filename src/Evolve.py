@@ -121,6 +121,7 @@ class Evolve:
         L0_weights = []
         L1_weights = []
         L2_weights = []
+        all_weights = []
         best_score = None
         best_weights = self.agent.get_weight_matrix()
 
@@ -153,6 +154,10 @@ class Evolve:
             best_scores.append(best_score)
             all_trials.append(score_trials)
 
+            if kwargs.get('save_all_weights', False):
+                if mean_score >= 180:
+                    all_weights.append(self.agent.get_weights_as_list())
+
             if self.agent.search_done():
                 print(f'Search done in gen {gen}\n\n')
                 break
@@ -160,7 +165,9 @@ class Evolve:
             # Get next agent.
             self.get_next_generation(all_scores, best_scores, best_weights)
 
-        return {
+
+
+        ret_dict = {
             'best_scores' : best_scores,
             'all_scores' : all_scores,
             'all_trials' : all_trials,
@@ -169,6 +176,11 @@ class Evolve:
             'L1_weights' : L1_weights,
             'L2_weights' : L2_weights,
         }
+
+        if kwargs.get('save_all_weights', False):
+            ret_dict['all_weights'] = all_weights
+
+        return ret_dict
 
 
     def run_episode(self, **kwargs):
@@ -191,6 +203,8 @@ class Evolve:
         while not done:
             if show_ep:
                 self.env.render()
+                if steps % 10 == 0:
+                    print(f'step {steps}, score {score:.2f}')
 
             action = self.agent.get_action(obs)
             obs, rew, done, info = self.env.step(action)
@@ -596,6 +610,19 @@ class Evolve:
 
 def replot_evo_dict_from_dir(dir):
 
+    '''
+    Minor fix: originally this would open run_params.json and read the run_dir
+    field, and pass that to the Evolve() object. However, that caused trouble
+    if the run was done on another machine, because the path was absolute,
+    so it would then be looking for a path that might not exist on the machine
+    that this function is being run on.
+
+    Instead, since we're already assuming this dir is a run dir, it should just
+    take this dir and rewrite run_dir and base_dir.
+
+    '''
+
+
     assert os.path.exists(dir), f'Dir must exist to load from! Dir {dir} DNE.'
 
     run_params_json_fname = os.path.join(dir, 'run_params.json')
@@ -607,6 +634,15 @@ def replot_evo_dict_from_dir(dir):
     # Get run_params to recreate the object
     with open(run_params_json_fname, 'r') as f:
         run_params = json.load(f)
+
+    # Rewrite run_params in case it was originally run on another machine.
+    run_params['run_dir'] = dir
+    base_dir = os.path.abspath(os.path.join(dir, os.pardir))
+    run_params['base_dir'] = base_dir
+
+    with open(run_params_json_fname, 'w+') as f:
+        json.dump(run_params, f, indent=4)
+
 
     # Recreate Evolve object, get evo_dict, replot
     # Have to pass run_dir so it doesn't automatically create a new dir.

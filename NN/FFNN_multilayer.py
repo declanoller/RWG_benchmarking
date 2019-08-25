@@ -94,6 +94,14 @@ class FFNN_multilayer:
         self.set_weights(w_mat_list)
 
 
+    def get_weights_as_list(self):
+        w_mat_list = []
+        for w_mat in self.weights_matrix:
+            w_flat = w_mat.flatten().tolist()
+            w_mat_list += w_flat
+
+        return w_mat_list
+
     def set_random_weights(self):
         # Just calls init_weights, which will randomize them.
         self.init_weights()

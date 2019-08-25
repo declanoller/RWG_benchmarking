@@ -10,6 +10,7 @@ import pprint as pp
 import pandas as pd
 from tabulate import tabulate
 import seaborn as sns
+import shutil
 
 '''
 
@@ -204,7 +205,12 @@ def run_vary_params(constant_params_dict, vary_params_dict, **kwargs):
     print(f'\nSaving statistics run to {stats_dir}')
     os.mkdir(stats_dir)
 
-    combined_params = {**constant_params_dict, **vary_params_dict}
+    # OLD VERSION
+    #combined_params = {**constant_params_dict, **vary_params_dict}
+    combined_params = {
+        'const_params' : constant_params_dict,
+        'vary_params' : vary_params_dict
+    }
     # Save params to file
     with open(os.path.join(stats_dir, 'vary_params.json'), 'w+') as f:
         json.dump(combined_params, f, indent=4)
@@ -271,6 +277,60 @@ def run_vary_params(constant_params_dict, vary_params_dict, **kwargs):
 
 
 
+def plot_all_agg_stats(stats_dir):
+
+    '''
+    For plotting all the heatmaps/etc for a stats_dir.
+
+    '''
+
+    vary_params_fname = os.path.join(stats_dir, 'vary_params.json')
+    with open(vary_params_fname, 'r') as f:
+        vary_params_dict = json.load(f)
+
+    vary_params_stats_fname = os.path.join(stats_dir, 'vary_params_stats.csv')
+    df = pd.read_csv(vary_params_stats_fname)
+
+
+    vary_params = list(vary_params_dict['vary_params'].keys())
+    N_vary_params = len(vary_params)
+
+
+    # Only need to do if more than 2 params were varied.
+    if N_vary_params >= 2:
+
+        # Create heatmap plots dir
+        heatmap_dir = os.path.join(stats_dir, 'heatmap_plots')
+        if os.path.exists(heatmap_dir):
+            shutil.rmtree(heatmap_dir)
+        print(f'\nSaving heatmap plots to {heatmap_dir}')
+        os.mkdir(heatmap_dir)
+
+        # Iterate over all unique pairs of vary params, plot heatmaps of them
+        for pair in itertools.combinations(vary_params, 2):
+
+            print(f'Making heatmaps for {pair}')
+
+            other_params_flat = [(k, v) for k,v in vary_params_dict.items() if k not in pair]
+            other_params = [x[0] for x in other_params_flat]
+            other_vals = [x[1] for x in other_params_flat]
+            print(f'other params: {other_params}')
+
+            # Create dir for specific pivot
+            pivot_name = 'vary_{}_{}'.format(*pair)
+            pivot_dir = os.path.join(heatmap_dir, pivot_name)
+            os.mkdir(pivot_dir)
+
+            # Select for each of the combos of the other params.
+            for other_params_set in itertools.product(*other_vals):
+                other_sel_dict = dict(zip(other_params, other_params_set))
+                fname_label = path_utils.param_dict_to_fname_str(other_sel_dict)
+                df_sel = df.loc[(df[list(other_sel_dict)] == pd.Series(other_sel_dict)).all(axis=1)]
+
+                heatmap_plot(df_sel, *pair, 'mu_all_scores', pivot_dir, label=fname_label)
+                heatmap_plot(df_sel, *pair, perc_cutoff_str, pivot_dir, label=fname_label)
+
+
 
 
 def heatmap_plot(df, xvar, yvar, zvar, output_dir, **kwargs):
@@ -296,6 +356,83 @@ def heatmap_plot(df, xvar, yvar, zvar, output_dir, **kwargs):
 
 
 ################################# Helper functions
+
+def convert_old_vary_params_json(vary_params_fname):
+    '''
+    This is because I used to have vary_params.json be of the format:
+    {
+    "NN": "FFNN",
+    "env_name": [
+        "CartPole-v0",
+        "Acrobot-v1",
+        "MountainCar-v0",
+        "MountainCarContinuous-v0",
+        "Pendulum-v0"
+    ],
+    "N_hidden_layers": [
+        0,
+        1
+    ]
+    }
+
+    But it'd make life a lot easier if it were like:
+    {
+    'const_params':
+        {
+            "NN": "FFNN",
+        }
+    'vary_params':
+        {
+            "env_name": [
+                "CartPole-v0",
+                "Acrobot-v1",
+                "MountainCar-v0",
+                "MountainCarContinuous-v0",
+                "Pendulum-v0"
+            ],
+            "N_hidden_layers": [
+                0,
+                1
+            ]
+        }
+    }
+
+    So this function takes a vary_params.json file and converts it to the new
+    version if it has to be.
+    '''
+
+
+    # Get vary_params to check
+    with open(vary_params_fname, 'r') as f:
+        vary_params_dict = json.load(f)
+
+    # If for some reason it has const_params but not vary_params keys, something
+    # else is wrong.
+    if 'const_params' not in vary_params_dict.keys():
+
+        assert 'vary_params' not in vary_params_dict.keys(), 'vary_params in keys(), should not be'
+
+        print(f'\nvary_params.json file {vary_params_fname} is of old format, reformatting...')
+
+        combined_dict = {}
+        combined_dict['const_params'] = {}
+        combined_dict['vary_params'] = {}
+        for k,v in vary_params_dict.items():
+
+            # If the value is a list, that means it's a vary param, so
+            # add it to that dict.
+            if isinstance(v, list):
+                combined_dict['vary_params'][k] = v
+            else:
+                combined_dict['const_params'][k] = v
+
+
+        # Save combined params to file in new format
+        with open(vary_params_fname, 'w+') as f:
+            json.dump(combined_dict, f, indent=4)
+
+
+
 
 
 def vary_params_cross_products(constant_params_dict, vary_params_dict):
@@ -332,12 +469,26 @@ def vary_params_cross_products(constant_params_dict, vary_params_dict):
 
 
 
-def replot_whole_stats_dir(stats_dir):
+def replot_whole_stats_dir(stats_dir, **kwargs):
 
-    for root, dirs, files in os.walk(stats_dir):
-        if 'run_params.json' in files:
-            print('Replotting for dir {}'.format(root.split('/')[-1]))
-            replot_evo_dict_from_dir(root)
+    if kwargs.get('replot_evo_dirs', False):
+        print('\nReplotting all evo dirs...\n')
+
+        for root, dirs, files in os.walk(stats_dir):
+            if 'run_params.json' in files:
+                print('Replotting for dir {}'.format(root.split('/')[-1]))
+                replot_evo_dict_from_dir(root)
+
+
+    if kwargs.get('replot_agg_stats', True):
+
+        vary_params_fname = os.path.join(stats_dir, 'vary_params.json')
+        assert os.path.exists(vary_params_fname), f'vary_params.json file {vary_params_fname} DNE!'
+
+        # fix if necessary
+        convert_old_vary_params_json(vary_params_fname)
+
+
 
 
 #

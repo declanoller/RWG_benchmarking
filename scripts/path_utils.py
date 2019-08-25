@@ -17,6 +17,9 @@ SRC_DIR = os.path.join(ROOT_DIR, 'src')
 NN_DIR = os.path.join(ROOT_DIR, 'NN')
 OUTPUT_DIR = os.path.join(ROOT_DIR, 'output')
 
+if not os.path.exists(OUTPUT_DIR):
+    os.mkdir(OUTPUT_DIR)
+
 sys.path.append(ROOT_DIR)
 sys.path.append(SRC_DIR)
 sys.path.append(NN_DIR)
@@ -46,7 +49,7 @@ def timer(func):
 def get_date_str():
     # Returns the date and time for labeling output.
     # -4 to only take two second decimal places.
-	return datetime.now().strftime('%d-%m-%Y_%H-%M-%S.%f')[:-4]
+	return datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
 
 
 def dict_to_str_list(dict):
