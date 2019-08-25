@@ -23,7 +23,7 @@ or, displayed more clearly as a log histogram:
   <img width="640" height="480" src="misc/readme_figs/CartPole-v0_all_scores_log_dist_12-08-2019_22-35-17.00.png">
 </p>
 
-or, we can sort the generations by mean score (the black line), but at each one, also plot the scores for the individual episodes of that generation:
+or, we can sort the generations by mean score (the black line), but at each one, also plot the scores (red circles) for the individual episodes of that generation:
 
 <p align="center">
   <img width="640" height="480" src="misc/readme_figs/CartPole-v0_score_trials_ordered_12-08-2019_22-35-17.00.png">

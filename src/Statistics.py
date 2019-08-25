@@ -1,16 +1,22 @@
+import pandas as pd
 import path_utils
 from Evolve import Evolve, replot_evo_dict_from_dir
 import traceback as tb
-import os, json
+import os, json, shutil
 import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 from copy import deepcopy
 import pprint as pp
-import pandas as pd
 from tabulate import tabulate
 import seaborn as sns
 import shutil
+import ray, psutil, time
+
+ray.init(num_cpus=psutil.cpu_count(), ignore_reinit_error=True, include_webui=False)
+print('\nInitializing ray... Waiting for workers before starting...')
+time.sleep(2.0)
+print('Starting!\n')
 
 '''
 
@@ -65,6 +71,34 @@ def run_param_dict(param_dict, N_gen, N_trials, base_dir):
         print('\n\nAttempting to continue...\n\n')
 
         return {}
+
+@ray.remote
+def run_param_dict_wrapper(param_dict, N_gen, N_trials, base_dir):
+
+    # If a run_fname_label is provided, use that to create a more informative dir name.
+    # Otherwise, just use the date.
+    if 'run_fname_label' in param_dict.keys():
+        run_fname_label = param_dict['run_fname_label']
+    else:
+        run_fname_label = 'vary_params'
+
+    # Make plots for this params set
+    if 'run_plot_label' in param_dict.keys():
+        run_plot_label = param_dict['run_plot_label']
+    else:
+        run_plot_label = run_fname_label
+
+    # Base dir for this set of params
+    params_dir = os.path.join(base_dir, '{}_{}'.format(run_fname_label, path_utils.get_date_str()))
+    os.mkdir(params_dir)
+
+    print('\n\nNow running with params:')
+    pp.pprint(param_dict, width=1)
+    print('\n\n')
+
+    stats_dict = run_param_dict(param_dict, N_gen, N_trials, params_dir)
+    return stats_dict
+
 
 
 @path_utils.timer
@@ -137,32 +171,16 @@ def run_param_dict_list(params_dict_list, **kwargs):
         stats_dir = os.path.join(path_utils.get_output_dir(), 'Stats_{}'.format(path_utils.get_date_str()))
         os.mkdir(stats_dir)
 
+    # Produce results in parallel
     for d in params_dict_list:
+        d['result_ID'] = run_param_dict_wrapper.remote( d,
+                                                        kwargs.get('N_gen', 100),
+                                                        kwargs.get('N_trials', 10),
+                                                        stats_dir)
 
-        # If a run_fname_label is provided, use that to create a more informative dir name.
-        # Otherwise, just use the date.
-        if 'run_fname_label' in d.keys():
-            run_fname_label = d['run_fname_label']
-        else:
-            run_fname_label = 'vary_params'
-
-        # Base dir for this set of params
-        params_dir = os.path.join(stats_dir, '{}_{}'.format(run_fname_label, path_utils.get_date_str()))
-        os.mkdir(params_dir)
-
-        print('\n\nNow running with params:')
-        pp.pprint(d, width=1)
-        print('\n\n')
-        stats_dict = run_param_dict(d, kwargs.get('N_gen', 100), kwargs.get('N_trials', 10), params_dir)
-
-        # Add to dict
-        d['stats_dict'] = deepcopy(stats_dict)
-
-        # Make plots for this params set
-        if 'run_plot_label' in d.keys():
-            run_plot_label = d['run_plot_label']
-        else:
-            run_plot_label = run_fname_label
+    # Retrieve results from ID
+    for d in params_dict_list:
+        d['stats_dict'] = ray.get(d['result_ID'])
 
     # Return passed list, which should have dicts
     # modified with the results
@@ -353,6 +371,134 @@ def heatmap_plot(df, xvar, yvar, zvar, output_dir, **kwargs):
 
 
 
+def make_total_score_df(stats_dir):
+
+    # Load csv that holds the names of all the dirs
+    stats_overview_fname = os.path.join(stats_dir, 'vary_params_stats.csv')
+    overview_df = pd.read_csv(stats_overview_fname)
+
+    # unique fname labels in table
+    run_fname_labels = overview_df.run_fname_label.unique()
+
+    # Get the params that are varied
+    vary_params_fname = os.path.join(stats_dir, 'vary_params.json')
+    with open(vary_params_fname, 'r') as f:
+        vary_params_dict = json.load(f)
+
+    const_params = [k for k,v in vary_params_dict.items() if not isinstance(v, list)]
+    vary_params = [k for k,v in vary_params_dict.items() if isinstance(v, list)]
+    print(f'Params varied: {vary_params}')
+
+    all_row_dfs = []
+
+    # Iterate through table, for each run label, find its corresponding dir,
+    # walk through it, get all its scores, create a dataframe from them,
+    # then concatenate all these df's into a big one, that we can plot.
+    for index, row in overview_df.iterrows():
+        # Only get the params varied, turn them into a dict
+        #row_dict = row[vary_params].to_dict()
+        row_dict = row[vary_params + const_params].to_dict()
+        #row_dict = row.to_dict()
+        run_label = row['run_fname_label']
+        # Get the one dir that has the run_fname_label in its name
+        match_dirs = [x for x in os.listdir(stats_dir) if run_label in x]
+        assert len(match_dirs)==1, 'Must only have one dir matching label!'
+        vary_dir = match_dirs[0]
+        # Clumsy, but: walk through this dir until you find the evo_stats.json,
+        # then add its scores to the row_dict
+        for root, dirs, files in os.walk(os.path.join(stats_dir, vary_dir)):
+            if 'evo_stats.json' in files:
+                with open(os.path.join(root, 'evo_stats.json'), 'r') as f:
+                    evo_dict = json.load(f)
+
+                row_dict['all_scores'] = evo_dict['all_scores']
+
+        # pandas has the nice perk that if you create a df from a dict where
+        # some of the entries are constants and one entry is a list, it duplicates
+        # the constant values.
+        row_df = pd.DataFrame(row_dict)
+        all_row_dfs.append(row_df)
+
+
+    all_scores_df = pd.concat(all_row_dfs)
+    all_scores_fname = os.path.join(stats_dir, 'all_scores.csv')
+    all_scores_df.to_csv(all_scores_fname, index=False)
+
+
+
+def violin_plot(df, xvar, yvar, output_dir, **kwargs):
+
+    #df = pd.read_csv(csv_fname)
+    #df = df.pivot(yvar, xvar, zvar)
+
+
+    plt.close('all')
+    plt.figure()
+    ax = plt.gca()
+
+    label = kwargs.get('label', '')
+    sns.violinplot(x=xvar, y="all_scores", hue=yvar, data=df)
+
+    #sns.heatmap(df, annot=True, fmt=".1f", cmap='viridis', ax=ax)
+    ax.set_title(f'all_scores for constant {label}')
+    plt.savefig(os.path.join(output_dir, f'vary_{xvar}_{yvar}__all_scores_violinplot__const_{label}.png'))
+    if kwargs.get('show_plot', False):
+        plt.show()
+
+
+def all_violin_plots(stats_dir):
+
+    all_scores_fname = os.path.join(stats_dir, 'all_scores.csv')
+
+    if not os.path.exists(all_scores_fname):
+        make_total_score_df(stats_dir)
+
+    # Load csv that holds the names of all the dirs
+    df = pd.read_csv(all_scores_fname)
+
+    # Get the params that are varied
+    vary_params_fname = os.path.join(stats_dir, 'vary_params.json')
+    with open(vary_params_fname, 'r') as f:
+        all_params_dict = json.load(f)
+
+    vary_params = [k for k,v in all_params_dict.items() if isinstance(v, list)]
+    vary_params_dict = {k:v for k,v in all_params_dict.items() if isinstance(v, list)}
+
+    print(f'Params varied: {vary_params}')
+
+
+    # Only need to do if more than 2 params were varied.
+    if len(vary_params) >= 2:
+
+        # Create violin plots dir
+        violin_plots_dir = os.path.join(stats_dir, 'violin_plots')
+        print(f'\nSaving violin plots to {violin_plots_dir}')
+        if os.path.exists(violin_plots_dir):
+            shutil.rmtree(violin_plots_dir)
+        os.mkdir(violin_plots_dir)
+
+        # Iterate over all unique pairs of vary params, plot violin plots of them
+        for pair in itertools.combinations(vary_params, 2):
+
+            print(f'Making violin plots for {pair}')
+
+            other_params_flat = [(k, v) for k,v in vary_params_dict.items() if k not in pair]
+            other_params = [x[0] for x in other_params_flat]
+            other_vals = [x[1] for x in other_params_flat]
+            print(f'other params: {other_params}')
+
+            # Create dir for specific pivot
+            pivot_name = 'vary_{}_{}'.format(*pair)
+            pivot_dir = os.path.join(violin_plots_dir, pivot_name)
+            os.mkdir(pivot_dir)
+
+            # Select for each of the combos of the other params.
+            for other_params_set in itertools.product(*other_vals):
+                other_sel_dict = dict(zip(other_params, other_params_set))
+                fname_label = path_utils.param_dict_to_fname_str(other_sel_dict)
+                df_sel = df.loc[(df[list(other_sel_dict)] == pd.Series(other_sel_dict)).all(axis=1)]
+                print(other_sel_dict)
+                violin_plot(df_sel, *pair, pivot_dir, label=fname_label)
 
 
 ################################# Helper functions

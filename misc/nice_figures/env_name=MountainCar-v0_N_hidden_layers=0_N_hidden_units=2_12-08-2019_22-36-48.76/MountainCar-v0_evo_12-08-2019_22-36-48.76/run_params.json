@@ -1,0 +1,13 @@
+{
+    "NN": "FFNN_multilayer",
+    "N_hidden_layers": 0,
+    "N_hidden_units": 2,
+    "run_fname_label": "env_name=MountainCar-v0_N_hidden_layers=0_N_hidden_units=2",
+    "run_plot_label": "env_name=MountainCar-v0, N_hidden_layers=0, N_hidden_units=2",
+    "base_dir": "/home/declan/Documents/code/RWG_benchmarking/scripts/../output/Stats_vary_env_name_N_hidden_layers_N_hidden_units_12-08-2019_22-35-16.79/env_name=MountainCar-v0_N_hidden_layers=0_N_hidden_units=2_12-08-2019_22-36-48.76",
+    "env_name": "MountainCar-v0",
+    "search_method": "RWG",
+    "dt_str": "12-08-2019_22-36-48.76",
+    "run_dir": "/home/declan/Documents/code/RWG_benchmarking/scripts/../output/Stats_vary_env_name_N_hidden_layers_N_hidden_units_12-08-2019_22-35-16.79/env_name=MountainCar-v0_N_hidden_layers=0_N_hidden_units=2_12-08-2019_22-36-48.76/MountainCar-v0_evo_12-08-2019_22-36-48.76",
+    "NN_type": "FFNN_multilayer"
+}
