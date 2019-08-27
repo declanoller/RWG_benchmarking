@@ -48,16 +48,16 @@ class Evolve:
 
         # Get the base dir, which is where runs will be saved to. Default
         # is /output/
-        self.base_dir = kwargs.get('base_dir', path_utils.get_output_dir())
+        base_dir = kwargs.get('base_dir', path_utils.get_output_dir())
 
         # Datetime string for labeling the run
         self.dt_str = path_utils.get_date_str()
 
-        # If you don't pass anything, it will create a dir in self.base_dir to
+        # If you don't pass anything, it will create a dir in base_dir to
         # hold the results of this run, but you can supply your own externally.
         self.run_dir = kwargs.get('run_dir', None)
         if self.run_dir is None:
-            self.run_dir = os.path.join(self.base_dir, f'{self.env_name}_evo_{self.dt_str}')
+            self.run_dir = os.path.join(base_dir, f'{self.env_name}_evo_{self.dt_str}')
             os.mkdir(self.run_dir)
 
         # For saving the parameters used for the run. Run last in __init__().
@@ -227,12 +227,6 @@ class Evolve:
 
         if self.search_method == 'RWG':
             self.agent.set_random_weights()
-
-        elif self.search_method == 'gaussian_noise_hill_climb':
-            if all_scores[-1] < best_scores[-1]:
-                self.agent.set_weight_matrix(best_weights)
-
-            self.agent.mutate_gaussian_noise(sd=self.noise_sd)
 
         elif self.search_method in ['grid_search', 'bin_grid_search', 'sparse_bin_grid_search']:
 
@@ -489,18 +483,19 @@ class Evolve:
         ep_score = self.run_episode(show_ep=True, record_ep=True)
 
 
-    def save_all_evo_stats(self, evo_dict):
+    def save_all_evo_stats(self, evo_dict, **kwargs):
         '''
         For saving all the stats and plots for the evolution, just a collector
         function.
 
         '''
 
-        self.plot_scores(evo_dict)
-        self.plot_all_trial_stats(evo_dict)
-        self.plot_evo_histogram(evo_dict['all_scores'], 'Generation mean score', f'{self.env_name}_all_scores_dist_{self.dt_str}.png', plot_log=True)
         self.save_evo_dict(evo_dict)
-        self.plot_weight_stats(evo_dict)
+        if kwargs.get('save_plots', True):
+            self.plot_scores(evo_dict)
+            self.plot_all_trial_stats(evo_dict)
+            self.plot_evo_histogram(evo_dict['all_scores'], 'Generation mean score', f'{self.env_name}_all_scores_dist_{self.dt_str}.png', plot_log=True)
+            self.plot_weight_stats(evo_dict)
 
 
     def save_evo_dict(self, evo_dict):
@@ -527,7 +522,6 @@ class Evolve:
 
         self.run_params['env_name'] = self.env_name
         self.run_params['search_method'] = self.search_method
-        self.run_params['base_dir'] = self.base_dir
         self.run_params['dt_str'] = self.dt_str
         self.run_params['run_dir'] = self.run_dir
         self.run_params['NN_type'] = self.agent.NN_type
@@ -551,7 +545,6 @@ class Evolve:
 
         self.env_name = self.run_params['env_name']
         self.search_method = self.run_params['search_method']
-        self.base_dir = self.run_params['base_dir']
         self.dt_str = self.run_params['dt_str']
         self.run_dir = self.run_params['run_dir']
         self.agent.NN_type = self.run_params['NN_type'] # not necessary probably? Be careful
@@ -616,7 +609,7 @@ def replot_evo_dict_from_dir(dir):
     that this function is being run on.
 
     Instead, since we're already assuming this dir is a run dir, it should just
-    take this dir and rewrite run_dir and base_dir.
+    take this dir and rewrite run_dir.
 
     '''
 
@@ -635,8 +628,6 @@ def replot_evo_dict_from_dir(dir):
 
     # Rewrite run_params in case it was originally run on another machine.
     run_params['run_dir'] = dir
-    base_dir = os.path.abspath(os.path.join(dir, os.pardir))
-    run_params['base_dir'] = base_dir
 
     with open(run_params_json_fname, 'w+') as f:
         json.dump(run_params, f, indent=4)

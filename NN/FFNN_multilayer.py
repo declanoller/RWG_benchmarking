@@ -5,11 +5,17 @@ class FFNN_multilayer:
     def __init__(self, N_inputs, N_outputs, **kwargs):
 
         act_fn = kwargs.get('act_fn', 'tanh')
+        random_dist = kwargs.get('random_dist', 'normal')
 
         self.N_inputs = N_inputs
         self.N_outputs = N_outputs
         self.N_hidden_layers = kwargs.get('N_hidden_layers', 1)
         self.N_hidden_units = kwargs.get('N_hidden_units', N_inputs)
+
+        # MUST DO THIS BEFORE INIT_WEIGHTS!
+        random_dists = ['normal', 'uniform']
+        assert random_dist in random_dists, 'Must supply valid random dist name!'
+        self.random_dist = random_dist
 
         self.init_weights()
 
@@ -20,6 +26,7 @@ class FFNN_multilayer:
         }
         assert act_fn in activation_fn_d.keys(), 'Must supply valid activation function name!'
         self.act_fn = activation_fn_d[act_fn]
+
 
 
     def reset_state(self):
@@ -64,7 +71,12 @@ class FFNN_multilayer:
         for i in range(self.N_hidden_layers):
 
             mat_output_size = self.N_hidden_units
-            mat = np.random.randn(mat_output_size, mat_input_size)
+            if self.random_dist == 'normal':
+                mat = np.random.randn(mat_output_size, mat_input_size)
+            elif self.random_dist == 'uniform':
+                mat = np.random.uniform(-1.0, 1.0, (mat_output_size, mat_input_size))
+            else:
+                raise
             self.weights_matrix.append(mat)
             mat_input_size = mat_output_size + 1
 
@@ -101,6 +113,7 @@ class FFNN_multilayer:
             w_mat_list += w_flat
 
         return w_mat_list
+
 
     def set_random_weights(self):
         # Just calls init_weights, which will randomize them.

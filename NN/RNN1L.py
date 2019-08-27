@@ -15,9 +15,15 @@ class RNN1L:
     def __init__(self, N_inputs, N_outputs, **kwargs):
 
         act_fn = kwargs.get('act_fn', 'tanh')
+        random_dist = kwargs.get('random_dist', 'normal')
 
         self.N_inputs = N_inputs
         self.N_outputs = N_outputs
+
+        # MUST DO THIS BEFORE INIT_WEIGHTS!
+        random_dists = ['normal', 'uniform']
+        assert random_dist in random_dists, 'Must supply valid random dist name!'
+        self.random_dist = random_dist
 
         self.init_weights()
 
@@ -28,6 +34,7 @@ class RNN1L:
         }
         assert act_fn in activation_fn_d.keys(), 'Must supply valid activation function name!'
         self.act_fn = activation_fn_d[act_fn]
+
 
 
     def reset_state(self):
@@ -61,7 +68,14 @@ class RNN1L:
         self.last_output = np.zeros(self.N_outputs)
 
         mat_input_size = self.N_inputs + 1 + self.N_outputs
-        self.weights_matrix = np.random.randn(self.N_outputs, mat_input_size)
+
+        if self.random_dist == 'normal':
+            self.weights_matrix = np.random.randn(self.N_outputs, mat_input_size)
+        elif self.random_dist == 'uniform':
+            self.weights_matrix = np.random.uniform(-1.0, 1.0, (self.N_outputs, mat_input_size))
+        else:
+            raise
+
         self.N_weights = len(self.weights_matrix.flatten())
         self.reset_state()
 

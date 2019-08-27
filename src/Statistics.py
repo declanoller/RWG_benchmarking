@@ -11,12 +11,10 @@ import pprint as pp
 from tabulate import tabulate
 import seaborn as sns
 import shutil
-import ray, psutil, time
+import psutil, time
+import ray
 
-ray.init(num_cpus=psutil.cpu_count(), ignore_reinit_error=True, include_webui=False)
-print('\nInitializing ray... Waiting for workers before starting...')
-time.sleep(2.0)
-print('Starting!\n')
+
 
 '''
 
@@ -61,7 +59,7 @@ def run_param_dict(param_dict, N_gen, N_trials, base_dir):
         # Run a single parameters setting
         e = Evolve(env_name, **params)
         evo_dict = e.evolve(N_gen, N_trials=N_trials)
-        e.save_all_evo_stats(evo_dict)
+        e.save_all_evo_stats(evo_dict, save_plots=False)
 
         return evo_dict
 
@@ -88,15 +86,18 @@ def run_param_dict_wrapper(param_dict, N_gen, N_trials, base_dir):
     else:
         run_plot_label = run_fname_label
 
-    # Base dir for this set of params
+    # Run dir for this set of params
     params_dir = os.path.join(base_dir, '{}_{}'.format(run_fname_label, path_utils.get_date_str()))
     os.mkdir(params_dir)
+    # Doing this so it just saves directly to this dir, which has a more
+    # informative name than Evolve.__init__() would create.
+    param_dict['run_dir'] = params_dir
 
     print('\n\nNow running with params:')
     pp.pprint(param_dict, width=1)
     print('\n\n')
 
-    stats_dict = run_param_dict(param_dict, N_gen, N_trials, params_dir)
+    stats_dict = run_param_dict(param_dict, N_gen, N_trials, base_dir)
     return stats_dict
 
 
@@ -223,34 +224,29 @@ def run_vary_params(constant_params_dict, vary_params_dict, **kwargs):
     print(f'\nSaving statistics run to {stats_dir}')
     os.mkdir(stats_dir)
 
-    # OLD VERSION
-    #combined_params = {**constant_params_dict, **vary_params_dict}
-    combined_params = {
+    # Create runs dir
+    all_runs_dir = os.path.join(stats_dir, 'all_runs')
+    print(f'\nSaving all runs to {all_runs_dir}')
+    os.mkdir(all_runs_dir)
+
+    # Create dict of const and vary params, as separate items
+    all_params = {
         'const_params' : constant_params_dict,
         'vary_params' : vary_params_dict
     }
     # Save params to file
-    with open(os.path.join(stats_dir, 'vary_params.json'), 'w+') as f:
-        json.dump(combined_params, f, indent=4)
+    with open(os.path.join(stats_dir, 'all_params.json'), 'w+') as f:
+        json.dump(all_params, f, indent=4)
 
 
     # Flatten list, pass to other function
     flat_param_list = vary_params_cross_products(constant_params_dict, vary_params_dict)
-    flat_param_list = run_param_dict_list(flat_param_list, stats_dir=stats_dir, **kwargs)
+    flat_param_list = run_param_dict_list(flat_param_list, stats_dir=all_runs_dir, **kwargs)
 
-    perc_cutoff = 99
-    perc_cutoff_str = f'all_scores_{perc_cutoff}_perc'
     # Parse results
     for d in flat_param_list:
-        stats_dict = d['stats_dict']
-
-        all_scores = stats_dict['all_scores']
-        d['mu_all_scores'] = np.mean(all_scores)
-        d['sigma_all_scores'] = np.std(all_scores)
-
-        d[perc_cutoff_str] = np.percentile(all_scores, perc_cutoff)
-
-        #pp.pprint(d, width=1)
+        # For now I'll still keep vary_params_stats.csv, but I think it's not
+        # actually necessary.
         # Get rid of this now
         d.pop('stats_dict')
 
@@ -259,38 +255,6 @@ def run_vary_params(constant_params_dict, vary_params_dict, **kwargs):
     print(tabulate(df, headers=df.columns.values, tablefmt='psql'))
     df_fname = os.path.join(stats_dir, 'vary_params_stats.csv')
     df.to_csv(df_fname, index=False)
-
-    # Only need to do if more than 2 params were varied.
-    if len(vary_params) >= 2:
-
-        # Create heatmap plots dir
-        heatmap_dir = os.path.join(stats_dir, 'heatmap_plots')
-        print(f'\nSaving heatmap plots to {heatmap_dir}')
-        os.mkdir(heatmap_dir)
-
-        # Iterate over all unique pairs of vary params, plot heatmaps of them
-        for pair in itertools.combinations(vary_params, 2):
-
-            print(f'Making heatmaps for {pair}')
-
-            other_params_flat = [(k, v) for k,v in vary_params_dict.items() if k not in pair]
-            other_params = [x[0] for x in other_params_flat]
-            other_vals = [x[1] for x in other_params_flat]
-            print(f'other params: {other_params}')
-
-            # Create dir for specific pivot
-            pivot_name = 'vary_{}_{}'.format(*pair)
-            pivot_dir = os.path.join(heatmap_dir, pivot_name)
-            os.mkdir(pivot_dir)
-
-            # Select for each of the combos of the other params.
-            for other_params_set in itertools.product(*other_vals):
-                other_sel_dict = dict(zip(other_params, other_params_set))
-                fname_label = path_utils.param_dict_to_fname_str(other_sel_dict)
-                df_sel = df.loc[(df[list(other_sel_dict)] == pd.Series(other_sel_dict)).all(axis=1)]
-
-                heatmap_plot(df_sel, *pair, 'mu_all_scores', pivot_dir, label=fname_label)
-                heatmap_plot(df_sel, *pair, perc_cutoff_str, pivot_dir, label=fname_label)
 
 
 
@@ -302,23 +266,36 @@ def plot_all_agg_stats(stats_dir):
 
     '''
 
-    vary_params_fname = os.path.join(stats_dir, 'vary_params.json')
-    with open(vary_params_fname, 'r') as f:
-        vary_params_dict = json.load(f)
+    agg_stats_dir = os.path.join(stats_dir, 'agg_stats')
+    if os.path.exists(agg_stats_dir):
+        shutil.rmtree(agg_stats_dir)
+    print(f'\nSaving all aggregate stats to {agg_stats_dir}')
+    os.mkdir(agg_stats_dir)
 
-    vary_params_stats_fname = os.path.join(stats_dir, 'vary_params_stats.csv')
-    df = pd.read_csv(vary_params_stats_fname)
 
+    all_params_fname = os.path.join(stats_dir, 'all_params.json')
+    with open(all_params_fname, 'r') as f:
+        all_params_dict = json.load(f)
 
-    vary_params = list(vary_params_dict['vary_params'].keys())
+    # Import all scores
+    all_scores_fname = os.path.join(stats_dir, 'all_scores.csv')
+    df = pd.read_csv(all_scores_fname)
+
+    vary_params_dict = all_params_dict['vary_params']
+    const_params_dict = all_params_dict['const_params']
+    vary_params = list(vary_params_dict.keys())
     N_vary_params = len(vary_params)
 
 
     # Only need to do if more than 2 params were varied.
     if N_vary_params >= 2:
 
+        # Get envs info to find out percent of runs that "solved" the env.
+        with open(os.path.join(path_utils.get_src_dir(), 'gym_envs_info.json'), 'r') as f:
+            envs_dict = json.load(f)
+
         # Create heatmap plots dir
-        heatmap_dir = os.path.join(stats_dir, 'heatmap_plots')
+        heatmap_dir = os.path.join(agg_stats_dir, 'heatmap_plots')
         if os.path.exists(heatmap_dir):
             shutil.rmtree(heatmap_dir)
         print(f'\nSaving heatmap plots to {heatmap_dir}')
@@ -341,12 +318,54 @@ def plot_all_agg_stats(stats_dir):
 
             # Select for each of the combos of the other params.
             for other_params_set in itertools.product(*other_vals):
+                # This part just selects for the rows that have the correct
+                # params/etc.
                 other_sel_dict = dict(zip(other_params, other_params_set))
                 fname_label = path_utils.param_dict_to_fname_str(other_sel_dict)
                 df_sel = df.loc[(df[list(other_sel_dict)] == pd.Series(other_sel_dict)).all(axis=1)]
 
-                heatmap_plot(df_sel, *pair, 'mu_all_scores', pivot_dir, label=fname_label)
-                heatmap_plot(df_sel, *pair, perc_cutoff_str, pivot_dir, label=fname_label)
+                df_no_scores = df_sel.drop('all_scores', axis=1)
+                #print(df_no_scores.columns.values)
+
+                df_params_only = df_no_scores.drop_duplicates()
+
+                all_row_dfs = []
+
+                # Iterate through table, for each run label, find its corresponding dir,
+                # walk through it, get all its scores, create a dataframe from them,
+                # then concatenate all these df's into a big one, that we can plot.
+                for index, row in df_params_only.iterrows():
+                    # Only get the params varied, turn them into a dict
+
+                    row_dict = row[df_no_scores.columns.values].to_dict()
+
+                    df_row = df_sel.loc[(df[list(row_dict)] == pd.Series(row_dict)).all(axis=1)]
+                    row_scores = df_row['all_scores'].values
+
+
+                    row_dict['index'] = index
+                    row_dict['mean_score'] = np.mean(row_scores)
+                    row_dict['best_score'] = np.max(row_scores)
+
+                    solved_reward = envs_dict[row_dict['env_name']]['solved_avg_reward']
+                    N_solved_scores = np.sum(np.where(row_scores >= solved_reward))
+                    row_dict['percent_solved_scores'] = N_solved_scores/len(row_scores)
+
+                    # pandas has the nice perk that if you create a df from a dict where
+                    # some of the entries are constants and one entry is a list, it duplicates
+                    # the constant values.
+                    row_df = pd.DataFrame(row_dict, index=[index])
+                    all_row_dfs.append(row_df)
+
+
+                all_scores_df = pd.concat(all_row_dfs)
+
+                #print(tabulate(all_scores_df, headers=all_scores_df.columns.values, tablefmt='psql'))
+
+                heatmap_plot(all_scores_df, *pair, 'mean_score', pivot_dir, label=fname_label)
+                heatmap_plot(all_scores_df, *pair, 'best_score', pivot_dir, label=fname_label)
+                heatmap_plot(all_scores_df, *pair, 'percent_solved_scores', pivot_dir, label=fname_label)
+                #heatmap_plot(df_sel, *pair, perc_cutoff_str, pivot_dir, label=fname_label)
 
 
 
@@ -381,12 +400,12 @@ def make_total_score_df(stats_dir):
     run_fname_labels = overview_df.run_fname_label.unique()
 
     # Get the params that are varied
-    vary_params_fname = os.path.join(stats_dir, 'vary_params.json')
-    with open(vary_params_fname, 'r') as f:
-        vary_params_dict = json.load(f)
+    all_params_fname = os.path.join(stats_dir, 'all_params.json')
+    with open(all_params_fname, 'r') as f:
+        all_params_dict = json.load(f)
 
-    const_params = [k for k,v in vary_params_dict.items() if not isinstance(v, list)]
-    vary_params = [k for k,v in vary_params_dict.items() if isinstance(v, list)]
+    const_params = list(all_params_dict['const_params'].keys())
+    vary_params = list(all_params_dict['vary_params'].keys())
     print(f'Params varied: {vary_params}')
 
     all_row_dfs = []
@@ -457,7 +476,7 @@ def all_violin_plots(stats_dir):
     df = pd.read_csv(all_scores_fname)
 
     # Get the params that are varied
-    vary_params_fname = os.path.join(stats_dir, 'vary_params.json')
+    vary_params_fname = os.path.join(stats_dir, 'all_params.json')
     with open(vary_params_fname, 'r') as f:
         all_params_dict = json.load(f)
 
@@ -505,7 +524,7 @@ def all_violin_plots(stats_dir):
 
 def convert_old_vary_params_json(vary_params_fname):
     '''
-    This is because I used to have vary_params.json be of the format:
+    This is because I used to have all_params.json be of the format:
     {
     "NN": "FFNN",
     "env_name": [
@@ -543,7 +562,7 @@ def convert_old_vary_params_json(vary_params_fname):
         }
     }
 
-    So this function takes a vary_params.json file and converts it to the new
+    So this function takes a all_params.json file and converts it to the new
     version if it has to be.
     '''
 
@@ -558,7 +577,7 @@ def convert_old_vary_params_json(vary_params_fname):
 
         assert 'vary_params' not in vary_params_dict.keys(), 'vary_params in keys(), should not be'
 
-        print(f'\nvary_params.json file {vary_params_fname} is of old format, reformatting...')
+        print(f'\nall_params.json file {vary_params_fname} is of old format, reformatting...')
 
         combined_dict = {}
         combined_dict['const_params'] = {}
@@ -628,12 +647,15 @@ def replot_whole_stats_dir(stats_dir, **kwargs):
 
     if kwargs.get('replot_agg_stats', True):
 
-        vary_params_fname = os.path.join(stats_dir, 'vary_params.json')
-        assert os.path.exists(vary_params_fname), f'vary_params.json file {vary_params_fname} DNE!'
+        vary_params_fname = os.path.join(stats_dir, 'all_params.json')
+        assert os.path.exists(vary_params_fname), f'all_params.json file {vary_params_fname} DNE!'
 
         # fix if necessary
         convert_old_vary_params_json(vary_params_fname)
 
+        make_total_score_df(stats_dir)
+
+        plot_all_agg_stats(stats_dir)
 
 
 

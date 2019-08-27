@@ -84,24 +84,48 @@ class Agent:
                 # -1, 0, +1.
                 self.grid_search_res = 3
 
+            self.N_weights = self.NN.N_weights
+            self.N_grid_combos = self.grid_search_res**self.N_weights
+            print(f'{self.N_weights} total weights')
+
+            '''grid_vals = np.linspace(-1.0, 1.0, self.grid_search_res)
             self.grid_search_idx = 0
-            N_weights = self.NN.N_weights
-            self.N_grid_combos = self.grid_search_res**N_weights
-            print(f'{N_weights} total weights')
-            grid_vals = np.linspace(-1.0, 1.0, self.grid_search_res)
-
             if self.search_method == 'sparse_bin_grid_search':
-                grid_vals = np.array(sorted(grid_vals, key=lambda x: np.abs(x)))
+                grid_vals = np.array(sorted(grid_vals, key=lambda x: np.abs(x)))'''
 
-            print(f'Iterating each weight over values: {grid_vals}')
-            grid = np.repeat(grid_vals.reshape(1, -1), N_weights, axis=0)
 
-            self.grid_search_weight_generator = itertools.product(*grid)
+            self.N_nonzero = 0
+            self.nonzero_generator = itertools.combinations_with_replacement([-1,1], self.N_nonzero)
 
-            print(f'\t==>{self.grid_search_res}^{N_weights} = {self.grid_search_res**N_weights} total weight sets to try.')
+            nonzero_w = next(self.nonzero_generator)
+            self.weight_generator = itertools.permutations(list(nonzero_w) + [0]*(self.N_weights - self.N_nonzero), self.N_weights)
+
+            print(f'\t==>{self.grid_search_res}^{self.N_weights} = {self.grid_search_res**self.N_weights} total weight sets to try.')
             # Set the weights to the first grid point
-            w = next(self.grid_search_weight_generator)
+            w = self.get_next_weight_set()
             self.set_weights_by_list(w)
+
+
+
+    def get_next_weight_set(self):
+        try:
+            # Try to just get the next weights set
+            return next(self.weight_generator)
+        except StopIteration:
+            # If it was at the end of that generator, you need to get the next
+            # set of nonzero_w
+            try:
+                # Call the nonzero_generator
+                nonzero_w = next(self.nonzero_generator)
+                self.weight_generator = itertools.permutations(list(nonzero_w) + [0]*(self.N_weights - self.N_nonzero), self.N_weights)
+                return self.get_next_weight_set()
+            except StopIteration:
+                # If the nonzero_generator is at the end, you need to increase
+                # self.N_nonzero and create it again
+                self.N_nonzero += 1
+                assert self.N_nonzero <= self.N_weights, 'self.N_nonzero is bigger than self.N_weights, weight search done!'
+                self.nonzero_generator = itertools.combinations_with_replacement([-1,1], self.N_nonzero)
+                return self.get_next_weight_set()
 
 
 
@@ -154,9 +178,8 @@ class Agent:
 
     def mutate_grid_search(self):
         # Used to step through the generator used for the grid search.
-        w = next(self.grid_search_weight_generator)
+        w = self.get_next_weight_set()
         self.set_weights_by_list(w)
-        self.grid_search_idx += 1
 
 
     def search_done(self):
