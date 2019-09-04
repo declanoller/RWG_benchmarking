@@ -73,6 +73,56 @@ params_dict_list = [
 ]'''
 
 
+
+arch_dict_list = [
+
+    {
+        'N_hidden_layers' : 0
+    },
+
+    {
+        'N_hidden_layers' : 1,
+        'N_hidden_units' : 2
+    },
+
+    {
+        'N_hidden_layers' : 1,
+        'N_hidden_units' : 4
+    },
+
+    {
+        'N_hidden_layers' : 1,
+        'N_hidden_units' : 8
+    },
+
+    {
+        'N_hidden_layers' : 2,
+        'N_hidden_units' : 4
+    }
+]
+
+env_list = [
+    'CartPole-v0',
+    'Pendulum-v0',
+    'MountainCar-v0',
+    'MountainCarContinuous-v0',
+    'Acrobot-v1'
+]
+params_dict_list = []
+
+for env in env_list:
+
+    for arch_dict in arch_dict_list:
+
+        params_dict = arch_dict.copy()
+        params_dict['env_name'] = env
+
+        params_dict_list.append(params_dict)
+
+
+print(params_dict_list)
+exit()
+
 #stats_dir = '/home/declan/Documents/code/RWG_benchmarking/output/results_data/giuse_second_run_8.28.2019_uniform/run_2_rand/Stats_vary_env_name_N_hidden_layers_N_hidden_units_27-08-2019_15-37-54_01HL_248HU'
 #stats_dir = '/home/declan/Documents/code/RWG_benchmarking/output/results_data/giuse_second_run_8.28.2019_uniform/run_2_rand/Stats_vary_env_name_27-08-2019_21-07-16_2HL_4HU'
 #stats_dir = '/home/declan/Documents/code/RWG_benchmarking/output/no_bias/Stats_vary_env_name_02-09-2019_19-37-15_nobias_0HU_no_acro'

@@ -69,6 +69,8 @@ class Agent:
         NNs, they have to be reshaped carefully.
         '''
 
+        self.search_done = False
+
         if self.search_method in ['grid_search', 'bin_grid_search', 'sparse_bin_grid_search']:
             if self.search_method == 'grid_search':
                 # This will assume that you want to search for weights
@@ -95,12 +97,12 @@ class Agent:
 
 
             self.N_nonzero = 0
-            self.nonzero_generator = itertools.combinations_with_replacement([-1,1], self.N_nonzero)
+            self.nonzero_gen = itertools.product([-1,1], repeat=self.N_nonzero)
+            self.nonzero_tuple = next(self.nonzero_gen)
 
-            nonzero_w = next(self.nonzero_generator)
-            self.weight_generator = itertools.permutations(list(nonzero_w) + [0]*(self.N_weights - self.N_nonzero), self.N_weights)
+            self.nonzero_ind_gen = itertools.combinations(range(self.N_weights), self.N_nonzero)
 
-            print(f'\t==>{self.grid_search_res}^{self.N_weights} = {self.grid_search_res**self.N_weights} total weight sets to try.')
+            print(f'\t==>3^{self.N_weights} = {3**self.N_weights} total weight sets to try.')
             # Set the weights to the first grid point
             w = self.get_next_weight_set()
             self.set_weights_by_list(w)
@@ -108,24 +110,37 @@ class Agent:
 
 
     def get_next_weight_set(self):
+
         try:
-            # Try to just get the next weights set
-            return next(self.weight_generator)
+            nonzero_ind_tuple = next(self.nonzero_ind_gen)
+            arr = np.zeros(self.N_weights)
+            for val,ind in zip(self.nonzero_tuple, nonzero_ind_tuple):
+                arr[ind] = val
+            #counter += 1
+            #print(f'\t\t\t=========> {arr}')
+            return arr
+
         except StopIteration:
-            # If it was at the end of that generator, you need to get the next
-            # set of nonzero_w
+
             try:
-                # Call the nonzero_generator
-                nonzero_w = next(self.nonzero_generator)
-                self.weight_generator = itertools.permutations(list(nonzero_w) + [0]*(self.N_weights - self.N_nonzero), self.N_weights)
+                self.nonzero_tuple = next(self.nonzero_gen)
+                self.nonzero_ind_gen = itertools.combinations(range(self.N_weights), self.N_nonzero)
+                #print(f'nonzero_ind_tuple = {nonzero_ind_tuple}')
                 return self.get_next_weight_set()
+                #counter += 1
+                #arr = get_set(nonzero_tuple, nonzero_ind_tuple, N_weights)
+                #all_sets.append(arr)
+                #print(f'\t\t\t=========> {arr}')
+
             except StopIteration:
-                # If the nonzero_generator is at the end, you need to increase
-                # self.N_nonzero and create it again
-                self.N_nonzero += 1
-                assert self.N_nonzero <= self.N_weights, 'self.N_nonzero is bigger than self.N_weights, weight search done!'
-                self.nonzero_generator = itertools.combinations_with_replacement([-1,1], self.N_nonzero)
-                return self.get_next_weight_set()
+                #print('Done with nonzero_ind_gen!\n')
+                if self.N_nonzero < self.N_weights:
+                    self.N_nonzero += 1
+                    self.nonzero_gen = itertools.product([-1,1], repeat=self.N_nonzero)
+                    return self.get_next_weight_set()
+                else:
+                    print('Generators finished!')
+                    return None
 
 
 
@@ -179,18 +194,12 @@ class Agent:
     def mutate_grid_search(self):
         # Used to step through the generator used for the grid search.
         w = self.get_next_weight_set()
-        self.set_weights_by_list(w)
+        #print(w)
+        if w is not None:
+            self.set_weights_by_list(w)
+        else:
+            self.search_done = True
 
-
-    def search_done(self):
-        # Used to check whether all the grid_search combos have been gone through.
-        if self.search_method in ['grid_search', 'bin_grid_search', 'sparse_bin_grid_search']:
-            if self.grid_search_idx >= self.N_grid_combos - 1:
-                return True
-            else:
-                return False
-
-        return False
 
 
     def get_weight_sums(self):

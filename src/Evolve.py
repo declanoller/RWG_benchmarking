@@ -1,7 +1,7 @@
 import numpy as np
 import gym
 import matplotlib.pyplot as plt
-import os, json
+import os, json, time
 
 import path_utils
 import Agent
@@ -122,6 +122,7 @@ class Evolve:
         all_weights = []
         best_score = None
         best_weights = self.agent.get_weight_matrix()
+        start_time = time.time()
 
         # Gameplay loop
         for gen in range(N_gen):
@@ -152,18 +153,15 @@ class Evolve:
             best_scores.append(best_score)
             all_trials.append(score_trials)
 
-            if kwargs.get('save_all_weights', False):
-                if mean_score >= 180:
-                    all_weights.append(self.agent.get_weights_as_list())
-
-            if self.agent.search_done():
-                print(f'Search done in gen {gen}\n\n')
-                break
-
             # Get next agent.
             self.get_next_generation(all_scores, best_scores, best_weights)
 
+            if self.agent.search_done:
+                print(f'Search done in gen {gen}\n\n')
+                break
 
+
+        total_runtime = time.time() - start_time
 
         ret_dict = {
             'best_scores' : best_scores,
@@ -173,6 +171,9 @@ class Evolve:
             'L0_weights' : L0_weights,
             'L1_weights' : L1_weights,
             'L2_weights' : L2_weights,
+            'N_gen' : N_gen,
+            'N_trials' : N_trials,
+            'total_runtime' : total_runtime
         }
 
         if kwargs.get('save_all_weights', False):
@@ -378,11 +379,15 @@ class Evolve:
 
         '''
 
+        N_gen = len(evo_dict['all_trials'])
+        N_trials = len(evo_dict['all_trials'][0])
+
+
         ####################### Episode score variance
         plt.close('all')
 
         sigma = np.std(evo_dict['all_trials'], axis=1)
-        N_trials = len(evo_dict['all_trials'][0])
+
 
         plt.plot(evo_dict['all_scores'], sigma, 'o', color='dodgerblue', alpha=self.plot_pt_alpha)
 
@@ -402,7 +407,6 @@ class Evolve:
         plt.close('all')
 
         trial_min = np.min(evo_dict['all_trials'], axis=1)
-        N_trials = len(evo_dict['all_trials'][0])
 
         plt.plot(evo_dict['all_scores'], trial_min, 'o', color='dodgerblue', alpha=self.plot_pt_alpha)
 
@@ -421,7 +425,6 @@ class Evolve:
         plt.close('all')
 
         trial_max = np.max(evo_dict['all_trials'], axis=1)
-        N_trials = len(evo_dict['all_trials'][0])
 
         plt.plot(evo_dict['all_scores'], trial_max, 'o', color='dodgerblue', alpha=self.plot_pt_alpha)
 
@@ -442,7 +445,6 @@ class Evolve:
 
         trial_min = np.min(evo_dict['all_trials'], axis=1)
         trial_max = np.max(evo_dict['all_trials'], axis=1)
-        N_trials = len(evo_dict['all_trials'][0])
 
         plt.plot(evo_dict['all_scores'], trial_min, 'o', color='mediumturquoise', alpha=self.plot_pt_alpha)
         plt.plot(evo_dict['all_scores'], trial_max, 'o', color='plum', alpha=self.plot_pt_alpha)
@@ -494,7 +496,7 @@ class Evolve:
         if kwargs.get('save_plots', True):
             self.plot_scores(evo_dict)
             self.plot_all_trial_stats(evo_dict)
-            self.plot_evo_histogram(evo_dict['all_scores'], 'Generation mean score', f'{self.env_name}_all_scores_dist_{self.dt_str}.png', plot_log=True)
+            self.plot_evo_histogram(evo_dict['all_scores'], 'Mean generation score', f'{self.env_name}_all_scores_dist_{self.dt_str}.png', plot_log=True)
             self.plot_weight_stats(evo_dict)
 
 
@@ -564,22 +566,23 @@ class Evolve:
         fname = os.path.join(self.run_dir, fname)
 
         plt.close('all')
-        mu = np.mean(dist)
-        sd = np.std(dist)
+        #mu = np.mean(dist)
+        #sd = np.std(dist)
 
         if kwargs.get('N_bins', None) is None:
             plt.hist(dist, color='dodgerblue', edgecolor='gray')
         else:
             plt.hist(dist, color='dodgerblue', edgecolor='gray', bins=kwargs.get('N_bins', None))
 
-        plt.axvline(mu, linestyle='dashed', color='tomato', linewidth=2)
+        #plt.axvline(mu, linestyle='dashed', color='tomato', linewidth=2)
         plt.xlabel(dist_label, **self.plot_label_params)
         plt.ylabel('Counts', **self.plot_label_params)
 
         plt.xticks(**self.plot_tick_params)
         plt.yticks(**self.plot_tick_params)
 
-        plt.title(f'{dist_label} distribution for {self.env_name}\n$\mu = {mu:.1f}$, $\sigma = {sd:.1f}$', **self.plot_title_params)
+        #plt.title(f'{dist_label} distribution for {self.env_name}\n$\mu = {mu:.1f}$, $\sigma = {sd:.1f}$', **self.plot_title_params)
+        plt.title(f'{dist_label} distribution \nfor {self.env_name}', **self.plot_title_params)
         plt.savefig(fname)
 
         if kwargs.get('plot_log', False):
@@ -588,14 +591,15 @@ class Evolve:
             else:
                 plt.hist(dist, color='dodgerblue', edgecolor='gray', bins=kwargs.get('N_bins', None), log=True)
 
-            plt.axvline(mu, linestyle='dashed', color='tomato', linewidth=2)
+            #plt.axvline(mu, linestyle='dashed', color='tomato', linewidth=2)
             plt.xlabel(dist_label, **self.plot_label_params)
             plt.ylabel('log(Counts)', **self.plot_label_params)
 
             plt.xticks(**self.plot_tick_params)
             plt.yticks(**self.plot_tick_params)
 
-            plt.title(f'{dist_label} distribution for {self.env_name}\n$\mu = {mu:.1f}$, $\sigma = {sd:.1f}$', **self.plot_title_params)
+            #plt.title(f'{dist_label} distribution for {self.env_name}\n$\mu = {mu:.1f}$, $\sigma = {sd:.1f}$', **self.plot_title_params)
+            plt.title(f'{dist_label} distribution \nfor {self.env_name}', **self.plot_title_params)
             plt.savefig(fname.replace('dist', 'log_dist'))
 
 

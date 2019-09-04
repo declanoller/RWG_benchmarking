@@ -58,8 +58,8 @@ def run_param_dict(param_dict, N_gen, N_trials, base_dir):
     try:
         # Run a single parameters setting
         e = Evolve(env_name, **params)
-        evo_dict = e.evolve(N_gen, N_trials=N_trials)
-        e.save_all_evo_stats(evo_dict, save_plots=False)
+        evo_dict = e.evolve(N_gen, N_trials=N_trials, print_gen=True)
+        e.save_all_evo_stats(evo_dict, save_plots=True)
 
         return evo_dict
 
@@ -174,6 +174,12 @@ def run_param_dict_list(params_dict_list, **kwargs):
 
     # Produce results in parallel
     for d in params_dict_list:
+        # For non-ray use
+        '''d['result'] = run_param_dict_wrapper( d,
+                                                        kwargs.get('N_gen', 100),
+                                                        kwargs.get('N_trials', 10),
+                                                        stats_dir)'''
+        # For use with ray
         d['result_ID'] = run_param_dict_wrapper.remote( d,
                                                         kwargs.get('N_gen', 100),
                                                         kwargs.get('N_trials', 10),
@@ -182,6 +188,9 @@ def run_param_dict_list(params_dict_list, **kwargs):
     # Retrieve results from ID
     for d in params_dict_list:
         d['stats_dict'] = ray.get(d['result_ID'])
+        d.pop('result_ID')
+        #d['stats_dict'] = d['result'] # for non-ray use
+        #d.pop('result')
 
     # Return passed list, which should have dicts
     # modified with the results
@@ -234,6 +243,11 @@ def run_vary_params(constant_params_dict, vary_params_dict, **kwargs):
         'const_params' : constant_params_dict,
         'vary_params' : vary_params_dict
     }
+    other_run_params = ['N_gen', 'N_trials']
+    for p in other_run_params:
+        if p in kwargs.keys():
+            all_params[p] = kwargs.get(p, None)
+
     # Save params to file
     with open(os.path.join(stats_dir, 'all_params.json'), 'w+') as f:
         json.dump(all_params, f, indent=4)
@@ -257,6 +271,9 @@ def run_vary_params(constant_params_dict, vary_params_dict, **kwargs):
     df.to_csv(df_fname, index=False)
 
 
+
+
+################################# Plotting functions
 
 
 def plot_all_agg_stats(stats_dir):
@@ -409,7 +426,7 @@ def make_total_score_df(stats_dir):
     print(f'Params varied: {vary_params}')
 
     all_row_dfs = []
-
+    runs_dir = os.path.join(stats_dir, 'all_runs')
     # Iterate through table, for each run label, find its corresponding dir,
     # walk through it, get all its scores, create a dataframe from them,
     # then concatenate all these df's into a big one, that we can plot.
@@ -420,12 +437,12 @@ def make_total_score_df(stats_dir):
         #row_dict = row.to_dict()
         run_label = row['run_fname_label']
         # Get the one dir that has the run_fname_label in its name
-        match_dirs = [x for x in os.listdir(stats_dir) if run_label in x]
+        match_dirs = [x for x in os.listdir(runs_dir) if run_label in x]
         assert len(match_dirs)==1, 'Must only have one dir matching label!'
         vary_dir = match_dirs[0]
         # Clumsy, but: walk through this dir until you find the evo_stats.json,
         # then add its scores to the row_dict
-        for root, dirs, files in os.walk(os.path.join(stats_dir, vary_dir)):
+        for root, dirs, files in os.walk(os.path.join(runs_dir, vary_dir)):
             if 'evo_stats.json' in files:
                 with open(os.path.join(root, 'evo_stats.json'), 'r') as f:
                     evo_dict = json.load(f)
@@ -520,6 +537,492 @@ def all_violin_plots(stats_dir):
                 violin_plot(df_sel, *pair, pivot_dir, label=fname_label)
 
 
+
+def plot_stats_by_env(stats_dir, params_dict_list):
+
+    all_params_fname = os.path.join(stats_dir, 'all_params.json')
+    assert os.path.exists(all_params_fname), f'all_params.json file {all_params_fname} DNE!'
+    with open(all_params_fname, 'r') as f:
+        all_params_dict = json.load(f)
+
+    # Load csv that holds the names of all the dirs
+    stats_overview_fname = os.path.join(stats_dir, 'vary_params_stats.csv')
+    overview_df = pd.read_csv(stats_overview_fname)
+    drop_list = ['result_ID', 'run_plot_label', 'mu_all_scores', 'sigma_all_scores', 'all_scores_99_perc']
+    for d in drop_list:
+        if d in overview_df.columns.values:
+            overview_df = overview_df.drop(d, axis=1)
+
+    for params_dict in params_dict_list:
+        plot_2x2_grids(stats_dir, overview_df, params_dict)
+
+
+
+
+
+
+
+
+def plot_2x2_grids(stats_dir, overview_df, params_dict, **kwargs):
+
+    params_fname_label = '_'.join([f'{k}={v}' for k,v in params_dict.items()])
+
+    figures_base_dir = os.path.join(path_utils.get_output_dir(), 'figures')
+    figures_dir = os.path.join(figures_base_dir, '2x2_and_single')
+    params_dir = os.path.join(figures_dir, params_fname_label)
+
+    if os.path.exists(params_dir):
+        shutil.rmtree(params_dir)
+
+    os.mkdir(params_dir)
+
+    for k, v in params_dict.items():
+        subset_df = overview_df[(overview_df[k] == v)]
+
+
+    #print(tabulate(subset_df, headers=subset_df.columns.values, tablefmt='psql'))
+
+    envs_list = [
+        'MountainCarContinuous-v0',
+        'CartPole-v0',
+        'Acrobot-v1',
+        'MountainCar-v0',
+        'Pendulum-v0'
+    ]
+
+    all_runs_dir = os.path.join(stats_dir, 'all_runs')
+
+    env_score_dict = {}
+
+    for env in envs_list:
+
+        env_score_dict[env] = None
+        if env in subset_df['env_name'].values:
+            run_fname_label = subset_df[subset_df['env_name']==env]['run_fname_label'].values[0]
+
+            match_dirs = [x for x in os.listdir(all_runs_dir) if run_fname_label in x]
+            assert len(match_dirs)==1, 'Must only have one dir matching label!'
+            vary_dir = match_dirs[0]
+            # Clumsy, but: walk through this dir until you find the evo_stats.json,
+            # then add its scores to the row_dict
+            for root, dirs, files in os.walk(os.path.join(all_runs_dir, vary_dir)):
+                if 'evo_stats.json' in files:
+                    with open(os.path.join(root, 'evo_stats.json'), 'r') as f:
+                        evo_dict = json.load(f)
+
+                    env_score_dict[env] = evo_dict['all_trials']
+
+
+    plot_pt_alpha = 0.2
+    plot_label_params = {
+        'fontsize' : 10
+    }
+    plot_tick_params = {
+        'axis' : 'both',
+        'labelsize' : 8
+    }
+    plot_title_params = {
+        'fontsize' : 12
+    }
+    solo_plot_label_params = {
+        'fontsize' : 10
+    }
+    solo_plot_tick_params = {
+        'axis' : 'both',
+        'labelsize' : 8
+    }
+    solo_plot_title_params = {
+        'fontsize' : 12
+    }
+
+
+    solo_env = 'CartPole-v0'
+    grid_envs = [
+        'MountainCarContinuous-v0',
+        'Acrobot-v1',
+        'MountainCar-v0',
+        'Pendulum-v0'
+    ]
+    env_score_dict_grid = {k:v for k,v in env_score_dict.items() if k in grid_envs}
+
+
+    ################################### Plot sorted trials and mean
+
+
+    xlabel = 'Sorted by mean generation score'
+    ylabel = 'Generation trial scores'
+    plot_fname = 'trials_mean_sorted'
+
+    plt.close('all')
+    fig = plt.figure(figsize=(4,3))
+    ax = plt.gca()
+    scores = env_score_dict[solo_env]
+    all_trials = sorted(scores, key=lambda x: np.mean(x))
+    all_trials_mean = np.mean(all_trials, axis=1)
+
+    ax.tick_params(**solo_plot_tick_params)
+
+    ax.plot(all_trials, 'o', color='tomato', alpha=plot_pt_alpha, markersize=3)
+    ax.plot(all_trials_mean, color='black')
+
+    ax.set_xlabel(xlabel, **solo_plot_label_params)
+    ax.set_ylabel(ylabel, **solo_plot_label_params)
+
+    ax.set_title(f'{solo_env} environment', **solo_plot_title_params)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(params_dir, f'{params_fname_label}_{plot_fname}_{solo_env}.png'))
+
+
+    plt.close('all')
+    fig, axes = plt.subplots(2, 2, figsize=(6,6))
+    axes_flat = [axes[0][0], axes[1][0], axes[0][1], axes[1][1]]
+
+    for i, (env, scores) in enumerate(env_score_dict_grid.items()):
+
+        if scores is not None:
+            all_trials = sorted(scores, key=lambda x: np.mean(x))
+            all_trials_mean = np.mean(all_trials, axis=1)
+
+            axes_flat[i].tick_params(**plot_tick_params)
+
+            axes_flat[i].plot(all_trials, 'o', color='tomato', alpha=plot_pt_alpha, markersize=3)
+            axes_flat[i].plot(all_trials_mean, color='black')
+
+            axes_flat[i].set_xlabel(xlabel, **plot_label_params)
+            axes_flat[i].set_ylabel(ylabel, **plot_label_params)
+
+            axes_flat[i].set_title(f'{env} \nenvironment', **plot_title_params)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(params_dir, f'{params_fname_label}_{plot_fname}_2x2.png'))
+
+
+
+    ################################### Plot sorted variances
+
+    xlabel = 'Mean generation score'
+    ylabel = 'Generation score variance'
+    plot_fname = 'generation_trials_variance'
+
+
+    plt.close('all')
+    fig = plt.figure(figsize=(4,3))
+    ax = plt.gca()
+    scores = env_score_dict[solo_env]
+    all_trials_sigma = np.std(scores, axis=1)
+    all_trials_mean = np.mean(scores, axis=1)
+
+    ax.tick_params(**solo_plot_tick_params)
+
+    ax.plot(all_trials_mean, all_trials_sigma, 'o', color='dodgerblue', alpha=plot_pt_alpha, markersize=3)
+
+    ax.set_xlabel(xlabel, **solo_plot_label_params)
+    ax.set_ylabel(ylabel, **solo_plot_label_params)
+
+    ax.set_title(f'{solo_env} environment', **solo_plot_title_params)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(params_dir, f'{params_fname_label}_{plot_fname}_{solo_env}.png'))
+
+
+    plt.close('all')
+    fig, axes = plt.subplots(2, 2, figsize=(6,6))
+    axes_flat = [axes[0][0], axes[1][0], axes[0][1], axes[1][1]]
+
+    for i, (env, scores) in enumerate(env_score_dict_grid.items()):
+        if scores is not None:
+            all_trials_sigma = np.std(scores, axis=1)
+            all_trials_mean = np.mean(scores, axis=1)
+
+            axes_flat[i].tick_params(**plot_tick_params)
+
+            axes_flat[i].plot(all_trials_mean, all_trials_sigma, 'o', color='dodgerblue', alpha=plot_pt_alpha, markersize=3)
+
+            axes_flat[i].set_xlabel(xlabel, **plot_label_params)
+            axes_flat[i].set_ylabel(ylabel, **plot_label_params)
+
+            axes_flat[i].set_title(f'{env} \nenvironment', **plot_title_params)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(params_dir, f'{params_fname_label}_{plot_fname}_2x2.png'))
+
+
+
+    ################################### Plot log hists
+    xlabel = 'Mean generation score'
+    ylabel = 'log(counts)'
+    plot_fname = 'mean_gen_score_log_hist'
+
+
+    plt.close('all')
+    fig = plt.figure(figsize=(4,3))
+    ax = plt.gca()
+    scores = env_score_dict[solo_env]
+    all_trials_mean = np.mean(scores, axis=1)
+
+    ax.tick_params(**solo_plot_tick_params)
+
+    ax.hist(all_trials_mean, color='dodgerblue', edgecolor='gray', log=True)
+
+    ax.set_xlabel(xlabel, **solo_plot_label_params)
+    ax.set_ylabel(ylabel, **solo_plot_label_params)
+
+    ax.set_title(f'{solo_env} environment', **solo_plot_title_params)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(params_dir, f'{params_fname_label}_{plot_fname}_{solo_env}.png'))
+
+
+    plt.close('all')
+    fig, axes = plt.subplots(2, 2, figsize=(6,6))
+    axes_flat = [axes[0][0], axes[1][0], axes[0][1], axes[1][1]]
+
+
+    for i, (env, scores) in enumerate(env_score_dict_grid.items()):
+        if scores is not None:
+            all_trials_mean = np.mean(scores, axis=1)
+
+            axes_flat[i].hist(all_trials_mean, color='dodgerblue', edgecolor='gray', log=True)
+
+            axes_flat[i].tick_params(**plot_tick_params)
+
+            axes_flat[i].set_xlabel(xlabel, **plot_label_params)
+            axes_flat[i].set_ylabel(ylabel, **plot_label_params)
+
+            axes_flat[i].set_title(f'{env} \nenvironment', **plot_title_params)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(params_dir, f'{params_fname_label}_{plot_fname}_2x2.png'))
+
+
+
+
+
+
+def plot_envs_vs_NN_arch(stats_dir):
+    '''
+    For plotting a 5x5 grid of envs on one axis, and NN arch's used to
+    solve them on the other axis.
+    '''
+
+    figures_base_dir = os.path.join(path_utils.get_output_dir(), 'figures')
+    figures_dir = os.path.join(figures_base_dir, '5x5_plots')
+
+    all_runs_dir = os.path.join(stats_dir, 'all_runs')
+    # Load csv that holds the names of all the dirs
+    stats_overview_fname = os.path.join(stats_dir, 'vary_params_stats.csv')
+    overview_df = pd.read_csv(stats_overview_fname)
+    drop_list = ['result_ID', 'run_plot_label', 'mu_all_scores', 'sigma_all_scores', 'all_scores_99_perc']
+    overview_df = overview_df.drop(drop_list, axis=1)
+
+    envs_list = [
+        'MountainCarContinuous-v0',
+        'CartPole-v0',
+        'Acrobot-v1',
+        'MountainCar-v0',
+        'Pendulum-v0'
+    ]
+
+    env_name_title_dict = {
+        'MountainCarContinuous-v0' : 'MountainCar-\nContinuous-v0',
+        'CartPole-v0' : 'CartPole-v0',
+        'Acrobot-v1' : 'Acrobot-v1',
+        'MountainCar-v0' : 'MountainCar-v0',
+        'Pendulum-v0' : 'Pendulum-v0'
+    }
+
+    arch_list = [
+        {
+            'N_hidden_layers' : 0,
+            'N_hidden_units' : 2,
+            'arch_title' : '0 hidden layers'
+        },
+        {
+            'N_hidden_layers' : 1,
+            'N_hidden_units' : 2,
+            'arch_title' : '1 hidden layers, \n2 hidden units'
+        },
+        {
+            'N_hidden_layers' : 1,
+            'N_hidden_units' : 4,
+            'arch_title' : '1 hidden layers, \n4 hidden units'
+        },
+        {
+            'N_hidden_layers' : 1,
+            'N_hidden_units' : 8,
+            'arch_title' : '1 hidden layers, \n8 hidden units'
+        },
+    ]
+    '''{
+    'N_hidden_layers' : 2,
+    'N_hidden_units' : 4
+    },'''
+
+    env_arch_score_dict = {}
+
+    for i, env_name in enumerate(envs_list):
+        for j, arch_dict in enumerate(arch_list):
+
+            subset_df = overview_df[
+                (overview_df['env_name'] == env_name) & \
+                (overview_df['N_hidden_layers'] == arch_dict['N_hidden_layers']) & \
+                (overview_df['N_hidden_units'] == arch_dict['N_hidden_units'])
+                ]
+
+            run_fname_label = subset_df['run_fname_label'].values[0]
+
+            match_dirs = [x for x in os.listdir(all_runs_dir) if run_fname_label in x]
+            assert len(match_dirs)==1, 'Must only have one dir matching label!'
+            vary_dir = match_dirs[0]
+            print(vary_dir)
+
+            env_arch_tuple = (env_name, *list(arch_dict.values()))
+            print(env_arch_tuple)
+
+            for root, dirs, files in os.walk(os.path.join(all_runs_dir, vary_dir)):
+                if 'evo_stats.json' in files:
+                    with open(os.path.join(root, 'evo_stats.json'), 'r') as f:
+                        evo_dict = json.load(f)
+
+                    env_arch_score_dict[env_arch_tuple] = evo_dict['all_trials']
+
+    plot_pt_alpha = 0.2
+    plot_label_params = {
+        'fontsize' : 10
+    }
+    plot_tick_params = {
+        'axis' : 'both',
+        'labelsize' : 8
+    }
+    plot_title_params = {
+        'fontsize' : 12
+    }
+
+    plot_score_trials = False
+    plot_variances = True
+    plot_hists = False
+
+    ####################################### Score trials
+    if plot_score_trials:
+        plt.close('all')
+        fig, axes = plt.subplots(len(envs_list), len(arch_list), sharex='col', sharey='row',
+                                    gridspec_kw={'hspace': .1, 'wspace': 0}, figsize=(10,8))
+
+        for i, env_name in enumerate(envs_list):
+            for j, arch_dict in enumerate(arch_list):
+
+                env_arch_tuple = (env_name, *list(arch_dict.values()))
+                print(f'Plotting mean and trials of {env_arch_tuple}...')
+                scores = env_arch_score_dict[env_arch_tuple]
+
+                all_trials = sorted(scores, key=lambda x: np.mean(x))
+                all_trials_mean = np.mean(all_trials, axis=1)
+
+                axes[i][j].tick_params(**plot_tick_params)
+
+                axes[i][j].plot(all_trials, 'o', color='tomato', alpha=plot_pt_alpha, markersize=3)
+                axes[i][j].plot(all_trials_mean, color='black')
+
+                axes[i][j].set_xlabel(arch_dict['arch_title'], **plot_label_params)
+                axes[i][j].set_ylabel(env_name_title_dict[env_name], **plot_label_params)
+                axes[i][j].label_outer()
+
+        plt.savefig(os.path.join(figures_dir, f'5x5_trials_sorted.png'))
+
+
+
+    ####################################### Variances
+    if plot_variances:
+        plt.close('all')
+        fig, axes = plt.subplots(len(envs_list), len(arch_list), sharex=False, sharey='row',
+                                    gridspec_kw={'hspace': .5, 'wspace': 0}, figsize=(10,8))
+
+        for i, env_name in enumerate(envs_list):
+            for j, arch_dict in enumerate(arch_list):
+
+                env_arch_tuple = (env_name, *list(arch_dict.values()))
+                print(f'Plotting variance of {env_arch_tuple}...')
+                scores = env_arch_score_dict[env_arch_tuple]
+                all_trials = sorted(scores, key=lambda x: np.mean(x))
+                all_trials_mean = np.mean(all_trials, axis=1)
+                all_trials_std = np.std(all_trials, axis=1)
+
+                axes[i][j].tick_params(**plot_tick_params)
+
+                axes[i][j].plot(all_trials_mean, all_trials_std, 'o', color='dodgerblue', alpha=plot_pt_alpha, markersize=3)
+
+                if i == len(envs_list)-1:
+                    axes[i][j].set_xlabel(arch_dict['arch_title'], **plot_label_params)
+                if j == 0:
+                    axes[i][j].set_ylabel(env_name_title_dict[env_name], **plot_label_params)
+                #axes[i][j].label_outer()
+
+        plt.savefig(os.path.join(figures_dir, f'5x5_variance.png'))
+
+
+
+    ####################################### Histograms
+    if plot_hists:
+        plt.close('all')
+        fig, axes = plt.subplots(len(envs_list), len(arch_list), sharex='row', sharey='row',
+                                    gridspec_kw={'hspace': .1, 'wspace': 0}, figsize=(10,8))
+
+        for i, env_name in enumerate(envs_list):
+            for j, arch_dict in enumerate(arch_list):
+
+                env_arch_tuple = (env_name, *list(arch_dict.values()))
+                print(f'Plotting log hist of {env_arch_tuple}...')
+                scores = env_arch_score_dict[env_arch_tuple]
+
+                all_trials = sorted(scores, key=lambda x: np.mean(x))
+                all_trials_mean = np.mean(all_trials, axis=1)
+
+                axes[i][j].tick_params(**plot_tick_params)
+
+                axes[i][j].hist(all_trials_mean, color='dodgerblue', edgecolor='gray', log=True)
+
+                axes[i][j].set_xlabel(arch_dict['arch_title'], **plot_label_params)
+                axes[i][j].set_ylabel(env_name_title_dict[env_name], **plot_label_params)
+                axes[i][j].label_outer()
+
+        plt.savefig(os.path.join(figures_dir, f'5x5_hist_log.png'))
+
+
+
+
+
+def walk_multi_dir(multi_dir, params_dict_list):
+
+    results_dict = {}
+    for params_dict in params_dict_list:
+
+        for root, dirs, files in os.walk(stats_dir):
+            if 'run_params.json' in files:
+                with open(os.path.join(root, 'run_params.json'), 'r') as f:
+                    run_params_dict = json.load(f)
+
+                all_keys_match = True
+                for k,v in params_dict.items():
+                    if k not in run_params_dict.keys():
+                        all_keys_match = False
+                        break
+
+                    if run_params_dict[k] != v:
+                        all_keys_match = False
+                        break
+
+                if all_keys_match:
+                    with open(os.path.join(root, 'evo_stats.json'), 'r') as f:
+                        run_params_dict = json.load(f)
+
+
+
+
+
+
+
+
 ################################# Helper functions
 
 def convert_old_vary_params_json(vary_params_fname):
@@ -597,7 +1100,8 @@ def convert_old_vary_params_json(vary_params_fname):
             json.dump(combined_dict, f, indent=4)
 
 
-
+def vary_params_dict_to_fname_label(vary_params_dict):
+    return '_'.join([f'{k}={v}' for k,v in vary_params_dict.items()])
 
 
 def vary_params_cross_products(constant_params_dict, vary_params_dict):
@@ -647,11 +1151,11 @@ def replot_whole_stats_dir(stats_dir, **kwargs):
 
     if kwargs.get('replot_agg_stats', True):
 
-        vary_params_fname = os.path.join(stats_dir, 'all_params.json')
-        assert os.path.exists(vary_params_fname), f'all_params.json file {vary_params_fname} DNE!'
+        all_params_fname = os.path.join(stats_dir, 'all_params.json')
+        assert os.path.exists(all_params_fname), f'all_params.json file {all_params_fname} DNE!'
 
         # fix if necessary
-        convert_old_vary_params_json(vary_params_fname)
+        convert_old_vary_params_json(all_params_fname)
 
         make_total_score_df(stats_dir)
 

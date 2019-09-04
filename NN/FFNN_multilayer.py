@@ -6,6 +6,7 @@ class FFNN_multilayer:
 
         act_fn = kwargs.get('act_fn', 'tanh')
         random_dist = kwargs.get('random_dist', 'normal')
+        use_bias = kwargs.get('use_bias', True)
 
         self.N_inputs = N_inputs
         self.N_outputs = N_outputs
@@ -16,6 +17,11 @@ class FFNN_multilayer:
         random_dists = ['normal', 'uniform']
         assert random_dist in random_dists, 'Must supply valid random dist name!'
         self.random_dist = random_dist
+
+        # MUST DO THIS BEFORE INIT_WEIGHTS!
+        use_bias_options = [True, False]
+        assert use_bias in use_bias_options, 'Must supply True or False to use_bias!'
+        self.use_bias = use_bias
 
         self.init_weights()
 
@@ -57,7 +63,9 @@ class FFNN_multilayer:
 
         self.weights_matrix = []
 
-        mat_input_size = self.N_inputs + 1
+        mat_input_size = self.N_inputs
+        if self.use_bias:
+            mat_input_size += 1
 
         '''
         Here, we're using the convention of doing W*x, if W is the weight matrix
@@ -78,7 +86,9 @@ class FFNN_multilayer:
             else:
                 raise
             self.weights_matrix.append(mat)
-            mat_input_size = mat_output_size + 1
+            mat_input_size = mat_output_size
+            if self.use_bias:
+                mat_input_size += 1
 
         # And for the last layer:
         self.weights_matrix.append(np.random.randn(self.N_outputs, mat_input_size))
@@ -135,7 +145,8 @@ class FFNN_multilayer:
         x = input_vec
 
         for i,w in enumerate(self.weights_matrix):
-            x = np.concatenate((x, [1.0]))
+            if self.use_bias:
+                x = np.concatenate((x, [1.0]))
             x = np.dot(w, x)
             x = self.act_fn(x)
 

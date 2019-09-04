@@ -25,6 +25,11 @@ class RNN1L:
         assert random_dist in random_dists, 'Must supply valid random dist name!'
         self.random_dist = random_dist
 
+        # MUST DO THIS BEFORE INIT_WEIGHTS!
+        use_bias_options = [True, False]
+        assert use_bias in use_bias_options, 'Must supply True or False to use_bias!'
+        self.use_bias = use_bias
+
         self.init_weights()
 
         activation_fn_d = {
@@ -67,7 +72,9 @@ class RNN1L:
 
         self.last_output = np.zeros(self.N_outputs)
 
-        mat_input_size = self.N_inputs + 1 + self.N_outputs
+        mat_input_size = self.N_inputs + self.N_outputs
+        if self.use_bias:
+            mat_input_size += 1
 
         if self.random_dist == 'normal':
             self.weights_matrix = np.random.randn(self.N_outputs, mat_input_size)
@@ -113,7 +120,10 @@ class RNN1L:
         '''
 
         x = input_vec
-        x = np.concatenate((x, [1.0], self.last_output))
+        if self.use_bias:
+            x = np.concatenate((x, [1.0], self.last_output))
+        else:
+            x = np.concatenate((x, self.last_output))
         x = np.dot(self.weights_matrix, x)
         x = self.act_fn(x)
         self.last_output = x
