@@ -13,6 +13,10 @@ For getting statistics with various combos of parameters.
 '''
 
 
+N_GEN = 10000
+N_TRIALS = 20
+
+
 ############################### 0 HL
 Statistics.run_vary_params(
     {

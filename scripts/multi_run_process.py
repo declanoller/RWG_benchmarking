@@ -121,6 +121,8 @@ for env in env_list:
 
 
 print(params_dict_list)
+dir = '/home/declan/Documents/code/RWG_benchmarking/output/no_bias/gaussian'
+walk_multi_dir(dir, params_dict_list)
 exit()
 
 #stats_dir = '/home/declan/Documents/code/RWG_benchmarking/output/results_data/giuse_second_run_8.28.2019_uniform/run_2_rand/Stats_vary_env_name_N_hidden_layers_N_hidden_units_27-08-2019_15-37-54_01HL_248HU'

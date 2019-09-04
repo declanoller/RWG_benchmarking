@@ -997,11 +997,13 @@ def walk_multi_dir(multi_dir, params_dict_list):
     results_dict = {}
     for params_dict in params_dict_list:
 
-        for root, dirs, files in os.walk(stats_dir):
+        for root, dirs, files in os.walk(multi_dir):
             if 'run_params.json' in files:
                 with open(os.path.join(root, 'run_params.json'), 'r') as f:
                     run_params_dict = json.load(f)
 
+                # Check if all the keys are in the json and they have
+                # the right values
                 all_keys_match = True
                 for k,v in params_dict.items():
                     if k not in run_params_dict.keys():
@@ -1012,9 +1014,11 @@ def walk_multi_dir(multi_dir, params_dict_list):
                         all_keys_match = False
                         break
 
+                # If it's the right json, get the evo_stats.
                 if all_keys_match:
+                    print(f'Matching dir: {root}')
                     with open(os.path.join(root, 'evo_stats.json'), 'r') as f:
-                        run_params_dict = json.load(f)
+                        evo_stats = json.load(f)
 
 
 
